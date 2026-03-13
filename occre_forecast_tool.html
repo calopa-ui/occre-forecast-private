@@ -1,0 +1,3465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OcCre · SKU Forecast Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #eef0f5; color: #2c3e50; min-height: 100vh; display: flex; }
+
+    /* ── SIDEBAR ── */
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 230px; background: #1a2e4a; color: #fff; display: flex; flex-direction: column; z-index: 100; }
+    .logo { padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .logo h1 { font-size: 24px; font-weight: 800; color: #f0c060; letter-spacing: 2px; }
+    .logo p  { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 3px; letter-spacing: .3px; }
+    .nav { flex: 1; padding: 12px 0; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 13px 20px; cursor: pointer; color: rgba(255,255,255,.65); font-size: 13.5px; transition: all .18s; border-left: 3px solid transparent; user-select: none; }
+    .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+    .nav-item.active { background: rgba(255,255,255,.11); color: #fff; border-left-color: #f0c060; }
+    .nav-item .icon { font-size: 17px; width: 22px; text-align: center; }
+    .sidebar-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.1); }
+    .sidebar-footer .label { font-size: 10px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .5px; }
+    .sidebar-footer .value { font-size: 12px; color: rgba(255,255,255,.7); margin-top: 3px; }
+
+    /* ── MAIN ── */
+    .main { margin-left: 230px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+    .top-bar { background: #fff; border-bottom: 1px solid #dde3ed; padding: 14px 30px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .top-bar h2 { font-size: 18px; font-weight: 700; color: #1a2e4a; }
+    .top-bar .sub { font-size: 12px; color: #8795a1; margin-top: 2px; }
+    .top-bar-actions { display: flex; gap: 8px; align-items: center; }
+    .content { padding: 26px 30px; flex: 1; }
+
+    /* ── TAB CONTENT ── */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── CARDS ── */
+    .card { background: #fff; border-radius: 12px; padding: 22px; margin-bottom: 18px; box-shadow: 0 1px 5px rgba(0,0,0,.07); }
+    .card-title { font-size: 14px; font-weight: 700; color: #1a2e4a; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
+
+    /* ── STATS ROW ── */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+    .stat-card { background: #fff; border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 5px rgba(0,0,0,.07); border-top: 3px solid #dde3ed; }
+    .stat-card.gold  { border-top-color: #f0c060; }
+    .stat-card.green { border-top-color: #27ae60; }
+    .stat-card.blue  { border-top-color: #3498db; }
+    .stat-card.red   { border-top-color: #e74c3c; }
+    .stat-card.purple{ border-top-color: #9b59b6; }
+    .stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #8795a1; }
+    .stat-value { font-size: 26px; font-weight: 800; color: #1a2e4a; margin-top: 4px; line-height: 1; }
+    .stat-sub   { font-size: 11px; color: #aab4c0; margin-top: 4px; }
+
+    /* ── BUTTONS ── */
+    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 15px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .18s; white-space: nowrap; }
+    .btn-primary  { background: #1a2e4a; color: #fff; }
+    .btn-primary:hover { background: #243d5e; }
+    .btn-gold     { background: #f0c060; color: #1a2e4a; }
+    .btn-gold:hover { background: #e8b544; }
+    .btn-success  { background: #27ae60; color: #fff; }
+    .btn-success:hover { background: #219a52; }
+    .btn-danger   { background: #e74c3c; color: #fff; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-ghost    { background: #f0f2f7; color: #2c3e50; }
+    .btn-ghost:hover { background: #e4e8f0; }
+    .btn-sm       { padding: 5px 10px; font-size: 12px; }
+    .btn-lg       { padding: 12px 24px; font-size: 15px; }
+
+    /* ── FORMS ── */
+    .form-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label { display: block; font-size: 11px; font-weight: 700; color: #8795a1; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+    .form-control { width: 100%; padding: 8px 11px; border: 1.5px solid #dde3ed; border-radius: 7px; font-size: 13px; color: #2c3e50; background: #fff; transition: border-color .18s; font-family: inherit; }
+    .form-control:focus { outline: none; border-color: #1a2e4a; }
+    select.form-control { cursor: pointer; }
+
+    /* ── GRIDS ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+
+    /* ── UPLOAD ── */
+    .upload-zone { border: 2px dashed #dde3ed; border-radius: 10px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all .2s; }
+    .upload-zone:hover { border-color: #1a2e4a; background: #f8fafd; }
+    .upload-zone.ready { border-color: #27ae60; background: #f0fff7; }
+    .upload-icon { font-size: 30px; margin-bottom: 8px; }
+    .upload-text { font-size: 13px; color: #8795a1; }
+    .upload-fn { font-size: 13px; color: #27ae60; font-weight: 700; margin-top: 5px; }
+
+    /* ── TABLES ── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead th { background: #1a2e4a; color: #fff; padding: 9px 10px; text-align: right; font-weight: 600; white-space: nowrap; font-size: 12px; }
+    thead th.left { text-align: left; }
+    tbody tr:hover { background: #f8fafd; }
+    tbody td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: right; vertical-align: middle; }
+    tbody td.left { text-align: left; }
+    tbody tr:last-child td { border-bottom: none; }
+    .tbl-total td { font-weight: 800; background: #f4f6fb; border-top: 2px solid #dde3ed !important; border-bottom: none; }
+    .tbl-new td { background: #fffbf0; }
+
+    /* Editable cell */
+    .cell-input { width: 68px; padding: 3px 5px; border: 1.5px solid #dde3ed; border-radius: 5px; text-align: right; font-size: 12px; font-family: inherit; }
+    .cell-input:focus { outline: none; border-color: #f0c060; background: #fffde8; }
+    .cell-input.actual { border-color: #27ae60; background: #f5fff9; color: #1e6e3a; }
+
+    /* ── BADGES ── */
+    .badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+    .badge-green  { background: #d4edda; color: #155724; }
+    .badge-red    { background: #f8d7da; color: #721c24; }
+    .badge-yellow { background: #fff3cd; color: #856404; }
+    .badge-blue   { background: #cce5ff; color: #004085; }
+    .badge-grey   { background: #e9ecef; color: #6c757d; }
+
+    /* ── ALERTS ── */
+    .alert { padding: 11px 15px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 9px; }
+    .alert-info    { background: #e8f4fd; color: #1a5276; border-left: 4px solid #3498db; }
+    .alert-success { background: #eafaf1; color: #1e8449; border-left: 4px solid #27ae60; }
+    .alert-warning { background: #fef9e7; color: #b7770d; border-left: 4px solid #f39c12; }
+    .alert-danger  { background: #fde8e8; color: #8b1a1a; border-left: 4px solid #e74c3c; }
+
+    /* ── EMPTY STATE ── */
+    .empty { text-align: center; padding: 36px 20px; color: #8795a1; }
+    .empty .ei { font-size: 40px; margin-bottom: 10px; }
+    .empty p { font-size: 13px; }
+
+    /* ── ANALYST PANEL ── */
+    .analyst-section { margin-bottom: 18px; }
+    .analyst-narrative { padding: 16px 18px; border-radius: 10px; background: linear-gradient(135deg,#1a2e4a,#243d5e); color:#fff; margin-bottom:16px; line-height:1.6; font-size:13.5px; }
+    .analyst-narrative .nar-label { font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#f0c060;margin-bottom:6px; }
+    .analyst-narrative .nar-text  { color:rgba(255,255,255,.9); }
+    .analyst-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:16px; }
+    @media(max-width:1100px){ .analyst-grid{ grid-template-columns:1fr 1fr; } }
+    .analyst-card { background:#fff; border-radius:10px; padding:14px 16px; box-shadow:0 1px 5px rgba(0,0,0,.07); }
+    .analyst-card .ac-title { font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#8795a1;margin-bottom:10px;display:flex;align-items:center;gap:6px; }
+    .analyst-card .ac-empty { font-size:12px;color:#b0bec5;padding:8px 0; }
+    .insight-row { display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f2f7;gap:8px; }
+    .insight-row:last-child { border-bottom:none; }
+    .insight-sku  { font-size:12px;font-weight:700;color:#1a2e4a;white-space:nowrap; }
+    .insight-name { font-size:11.5px;color:#8795a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px; }
+    .insight-badge { font-size:11.5px;font-weight:800;white-space:nowrap; }
+    .ins-up   { color:#27ae60; }
+    .ins-down { color:#e74c3c; }
+    .ins-warn { color:#e67e22; }
+    .warn-row { display:flex;align-items:flex-start;gap:9px;padding:8px 12px;border-radius:7px;margin-bottom:7px;font-size:12.5px; }
+    .warn-row:last-child { margin-bottom:0; }
+    .warn-row.danger  { background:#fde8e8;border-left:3px solid #e74c3c; }
+    .warn-row.caution { background:#fef9e7;border-left:3px solid #f39c12; }
+    .warn-row.positive{ background:#eafaf1;border-left:3px solid #27ae60; }
+    .warn-row .wi { font-size:15px;flex-shrink:0;margin-top:1px; }
+    .warn-row .wt { font-weight:700;color:#1a2e4a; }
+    .warn-row .ws { color:#8795a1;font-size:11.5px;margin-top:2px; }
+    .pace-bar-wrap { height:8px;background:#f0f2f7;border-radius:99px;overflow:hidden;margin-top:5px; }
+    .pace-bar      { height:100%;border-radius:99px;transition:width .4s; }
+
+    /* ── REVISION ── */
+    .rev-item { padding: 11px 14px; border-left: 3px solid #3498db; background: #f8fafd; border-radius: 0 8px 8px 0; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .rev-date { font-size: 11px; color: #8795a1; }
+    .rev-desc { font-size: 13px; color: #2c3e50; margin-top: 2px; }
+
+    /* ── NEW SKU ITEM ── */
+    .ns-item { padding: 10px 14px; border: 1.5px solid #f0f2f7; border-radius: 9px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .ns-item-name { font-weight: 700; font-size: 13px; }
+    .ns-item-sub  { font-size: 11.5px; color: #8795a1; margin-top: 2px; }
+
+    /* ── VAR COLORS ── */
+    .var-up   { color: #27ae60; font-weight: 700; }
+
+    /* ── FORECAST SAVED STATE ── */
+    .fc-saved-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:10px 14px; border-radius:8px; font-size:12.5px; margin-top:12px; }
+    .fc-saved-bar.clean { background:#eafaf1; border:1.5px solid #a9dfbf; color:#1e6e3a; }
+    .fc-saved-bar.dirty { background:#fef9e7; border:1.5px solid #f9e08a; color:#856404; }
+    .fc-saved-bar .bar-icon { font-size:15px; }
+    .fc-saved-bar .bar-main { font-weight:700; }
+    .fc-saved-bar .bar-sub  { color:inherit; opacity:.75; font-size:11.5px; }
+    .btn-recalc { background:#f0c060; color:#1a2e4a; font-weight:800; font-size:14px;
+      padding:10px 22px; border-radius:8px; border:none; cursor:pointer; display:inline-flex;
+      align-items:center; gap:7px; transition:all .18s; box-shadow:0 2px 8px rgba(240,192,96,.4); }
+    .btn-recalc:hover { background:#e8b544; transform:translateY(-1px); box-shadow:0 4px 12px rgba(240,192,96,.5); }
+    .btn-recalc:active { transform:translateY(0); }
+    .btn-recalc.dirty-pulse { animation: pulse-gold 1.6s ease-in-out infinite; }
+    @keyframes pulse-gold { 0%,100%{box-shadow:0 2px 8px rgba(240,192,96,.4);} 50%{box-shadow:0 0 0 6px rgba(240,192,96,.25);} }
+    .var-down { color: #e74c3c; font-weight: 700; }
+    .var-ok   { color: #8795a1; }
+
+    /* ── MISC ── */
+    hr.divider { border: none; border-top: 1px solid #eef0f5; margin: 18px 0; }
+
+    /* ── VIEW TOGGLE (Monthly / Quarterly) ── */
+    .view-toggle { display:inline-flex; background:#f0f2f7; border-radius:7px; padding:3px; gap:2px; }
+    .view-toggle-btn { padding:5px 13px; border-radius:5px; border:none; cursor:pointer; font-size:12px; font-weight:600; color:#8795a1; background:transparent; transition:all .15s; white-space:nowrap; }
+    .view-toggle-btn.active { background:#fff; color:#1a2e4a; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+
+    /* ── GROUP HEADER ROW ── */
+    .grp-hdr td { background:#f0f3f9 !important; font-weight:800 !important; font-size:12.5px !important; color:#1a2e4a !important; padding:8px 12px !important; border-top:2px solid #dde3ed !important; cursor:pointer; user-select:none; }
+    .grp-hdr:hover td { background:#e8ecf5 !important; }
+    .grp-hdr td .grp-arrow { font-size:10px; margin-right:5px; transition:transform .15s; display:inline-block; }
+    .grp-hdr td .grp-arrow.open { transform:rotate(90deg); }
+
+    /* ── SORT INDICATOR ── */
+    th.sortable { cursor:pointer; user-select:none; }
+    th.sortable:hover { background:#243d5e; }
+    .sort-arrow { font-size:10px; margin-left:4px; color:rgba(255,255,255,.4); }
+    .sort-arrow.active { color:#f0c060; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f0f2f7; }
+    ::-webkit-scrollbar-thumb { background: #c0cad4; border-radius: 99px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; background: #eef0f7; border-radius: 99px; font-size: 12px; color: #2c3e50; margin-right: 4px; margin-bottom: 4px; }
+
+    @media (max-width: 1100px) { .stats-row { grid-template-columns: 1fr 1fr; } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="occre-gate" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0f1923;z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;"><script>(function(){if(sessionStorage.getItem("occre_auth")==="1"){document.currentScript.parentElement.style.display="none";}})();</script><div style="background:#1a2535;border-radius:16px;padding:48px 56px;width:380px;max-width:90vw;box-shadow:0 24px 64px rgba(0,0,0,.5);text-align:center;"><div style="font-size:40px;margin-bottom:16px;">&#128230;</div><div style="font-size:11px;letter-spacing:2px;color:#5c7a9e;text-transform:uppercase;margin-bottom:8px;">OcCre &middot; Forecast Tool</div><h2 style="color:#e8edf2;font-size:22px;font-weight:600;margin:0 0 32px;">Enter password to continue</h2><input id="occre-pw" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:14px 18px;border-radius:8px;border:1.5px solid #2d3f55;background:#0f1923;color:#e8edf2;font-size:16px;outline:none;margin-bottom:12px;" onkeydown="if(event.key==='Enter')document.getElementById('occre-btn').click()"><div id="occre-err" style="color:#f87171;font-size:13px;min-height:20px;margin-bottom:8px;"></div><button id="occre-btn" style="width:100%;padding:14px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:16px;font-weight:600;cursor:pointer;" onclick="(async function(){var pw=document.getElementById('occre-pw').value;var e=document.getElementById('occre-err');if(!pw){e.textContent='Please enter a password.';return;}var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));var h=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');if(h==='d65e2f594e7ecee5145401fa2f7eb004f2c61b78550e52d8dbd0405c8b7661e0'){sessionStorage.setItem('occre_auth','1');document.getElementById('occre-gate').style.display='none';}else{e.textContent='Incorrect password. Please try again.';document.getElementById('occre-pw').value='';document.getElementById('occre-pw').focus();}})()">Unlock</button><p style="color:#3d5470;font-size:12px;margin-top:24px;margin-bottom:0;">Access is restricted to authorised users only.</p></div></div>
+
+<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <h1>OcCRE</h1>
+    <p>SKU Forecast Tool</p>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active" id="nav-import"   onclick="showTab('import')">  <span class="icon">📥</span><span data-i18n="nav_import">Data Import</span></div>
+    <div class="nav-item"        id="nav-forecast" onclick="showTab('forecast')"><span class="icon">🔮</span><span data-i18n="nav_forecast">Forecast</span></div>
+    <div class="nav-item"        id="nav-newsku"   onclick="showTab('newsku')">  <span class="icon">✨</span><span data-i18n="nav_newsku">New SKU</span></div>
+    <div class="nav-item"        id="nav-tracker"  onclick="showTab('tracker')"> <span class="icon">📊</span><span data-i18n="nav_tracker">Tracker</span></div>
+    <div class="nav-item"        id="nav-stock"    onclick="showTab('stock')">   <span class="icon">📦</span><span data-i18n="nav_stock">Stock</span></div>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <button id="lang-en" onclick="setLang('en')" style="flex:1;padding:5px 0;border-radius:99px;border:1.5px solid #dde3ed;background:#2c3e50;color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;">EN</button>
+      <button id="lang-es" onclick="setLang('es')" style="flex:1;padding:5px 0;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#8795a1;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;">ES</button>
+    </div>
+    <div class="label" data-i18n="sidebar_label">Data loaded</div>
+    <div class="value" id="sidebarStatus">No data yet</div>
+  </div>
+</aside>
+
+<!-- ═══════════════════ MAIN ═══════════════════ -->
+<main class="main">
+
+  <!-- Top bars per tab -->
+  <div class="top-bar" id="topbar-import">
+    <div><h2>📥 Data Import</h2><div class="sub">Upload your Shopify (B2C) and Holded (B2B) CSV exports — or try sample data</div></div>
+    <div class="top-bar-actions">
+      <button class="btn btn-ghost" onclick="loadSampleData()">📋 Load Sample Data</button>
+    </div>
+  </div>
+  <div class="top-bar" id="topbar-forecast" style="display:none">
+    <div><h2>🔮 SKU Forecast</h2><div class="sub">Monthly units forecast by SKU — B2C + B2B combined</div></div>
+    <div class="top-bar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="exportForecastCSV()">⬇ Export CSV</button>
+      <button class="btn btn-gold" onclick="saveForecastRevision()">💾 Save Revision</button>
+    </div>
+  </div>
+  <div class="top-bar" id="topbar-newsku" style="display:none">
+    <div><h2>✨ New SKU Creator</h2><div class="sub">Generate a forecast for a new product based on a similar SKU</div></div>
+    <div class="top-bar-actions"></div>
+  </div>
+  <div class="top-bar" id="topbar-tracker" style="display:none">
+    <div><h2>📊 Forecast Tracker</h2><div class="sub">Enter monthly actuals to track vs. forecast and detect deviations</div></div>
+    <div class="top-bar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="exportTrackerCSV()">⬇ Export Report</button>
+    </div>
+  </div>
+  <div class="top-bar" id="topbar-stock" style="display:none">
+    <div><h2>📦 Stock Management</h2><div class="sub" data-i18n="topbar_stock_sub">Track current inventory, coverage weeks, and purchase recommendations</div></div>
+    <div class="top-bar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       TAB 1 · DATA IMPORT
+  ════════════════════════════════════════════ -->
+  <div class="content tab-pane active" id="tab-import">
+
+    <!-- ── SECTION 1: HISTORICAL DATA ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#1a2e4a;">📁 Historical Data — Closed Years</div>
+        <div style="font-size:12.5px;color:#8795a1;margin-top:3px;">Add complete annual sales (B2C + B2B) for each closed year. This builds the forecast baseline.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="loadSampleData()">📋 Load Sample Data</button>
+        <button class="btn btn-gold" onclick="toggleAddYear()">+ Add Year</button>
+      </div>
+    </div>
+
+    <!-- Year cards grid -->
+    <div id="yearCardsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px;margin-bottom:16px;">
+      <div id="noYearsMsg" class="card" style="grid-column:1/-1;text-align:center;padding:24px;color:#8795a1;margin-bottom:0;">
+        <div style="font-size:32px;margin-bottom:8px;">📅</div>
+        <div style="font-size:13px;">No historical years loaded yet.<br>Click <strong>+ Add Year</strong> or <strong>Load Sample Data</strong>.</div>
+      </div>
+    </div>
+
+    <!-- Add Year Form (collapsible) -->
+    <div class="card" id="addYearForm" style="display:none;margin-bottom:16px;">
+      <div class="card-title">📅 Add Historical Data</div>
+
+      <div class="grid-2">
+        <!-- B2C -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#1a2e4a;margin-bottom:8px;">🛒 B2C — Shopify CSV</div>
+          <div class="upload-zone" id="uz-hist-b2c" onclick="document.getElementById('f-hist-b2c').click()">
+            <div class="upload-icon" style="font-size:22px;">📄</div>
+            <div class="upload-text" style="font-size:12px;">Click to upload Shopify CSV</div>
+            <div id="fn-hist-b2c" class="upload-fn" style="display:none;font-size:12px;"></div>
+          </div>
+          <input type="file" id="f-hist-b2c" accept=".csv,.tsv,.xlsx,.xls" style="display:none" onchange="onHistFile('b2c',this)">
+          <div id="res-hist-b2c" style="margin-top:10px;"></div>
+        </div>
+        <!-- B2B -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#1a2e4a;margin-bottom:8px;">🏭 B2B — Holded CSV</div>
+          <div class="upload-zone" id="uz-hist-b2b" onclick="document.getElementById('f-hist-b2b').click()">
+            <div class="upload-icon" style="font-size:22px;">📄</div>
+            <div class="upload-text" style="font-size:12px;">Click to upload Holded CSV or Excel</div>
+            <div id="fn-hist-b2b" class="upload-fn" style="display:none;font-size:12px;"></div>
+          </div>
+          <input type="file" id="f-hist-b2b" accept=".csv,.tsv,.xlsx,.xls" style="display:none" onchange="onHistFile('b2b',this)">
+          <div id="res-hist-b2b" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <hr class="divider">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="addHistYear()">✅ Add to Dataset</button>
+        <button class="btn btn-ghost" onclick="toggleAddYear()">Cancel</button>
+        <div id="addYearMsg" style="font-size:13px;"></div>
+      </div>
+    </div>
+
+    <!-- Historical summary -->
+    <div id="histSummaryCard" style="display:none;">
+      <div class="stats-row">
+        <div class="stat-card gold"><div class="stat-label">Total SKUs</div><div class="stat-value" id="s-skus">—</div><div class="stat-sub">unique products</div></div>
+        <div class="stat-card blue"><div class="stat-label">Years Loaded</div><div class="stat-value" id="s-years">—</div><div class="stat-sub" id="s-yearRange">—</div></div>
+        <div class="stat-card green"><div class="stat-label">B2C Units (latest yr)</div><div class="stat-value" id="s-b2c">—</div><div class="stat-sub">Shopify</div></div>
+        <div class="stat-card purple"><div class="stat-label">B2B Units (latest yr)</div><div class="stat-value" id="s-b2b">—</div><div class="stat-sub">Holded</div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="card-title" style="margin:0;">📋 Year Preview</div>
+            <button id="btn-toggle-preview" onclick="toggleHistPreview()"
+              style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;font-size:11.5px;font-weight:700;color:#8795a1;cursor:pointer;transition:all .18s;"
+              title="Show / hide the data table">
+              <span id="preview-arrow" style="font-size:10px;transition:transform .2s;">▼</span> Hide
+            </button>
+          </div>
+          <select class="form-control" id="histPreviewYear" style="width:100px;" onchange="renderHistPreview()"></select>
+        </div>
+        <div id="histTableWrap">
+          <div class="tbl-wrap" id="histTable"></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" style="margin:28px 0 22px;">
+
+    <!-- ── SECTION 2: CURRENT YEAR ACTUALS ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#1a2e4a;">📊 Current Year Actuals — Live Data</div>
+        <div style="font-size:12.5px;color:#8795a1;margin-top:3px;">Upload the latest exports at any time. Each import replaces the previous version and feeds directly into the Tracker.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="form-row" style="margin-bottom:16px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Tracking Year</label>
+          <select class="form-control" id="cur-year" style="width:110px;"></select>
+        </div>
+        <div id="curYearStatus" style="align-self:flex-end;font-size:12px;color:#8795a1;padding-bottom:2px;"></div>
+      </div>
+      <div class="grid-2">
+        <!-- B2C Current -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#1a2e4a;margin-bottom:8px;">🛒 B2C Actuals — Shopify</div>
+          <div class="upload-zone" id="uz-cur-b2c" onclick="document.getElementById('f-cur-b2c').click()">
+            <div class="upload-icon" style="font-size:22px;">📄</div>
+            <div class="upload-text" style="font-size:12px;">Click to upload Shopify CSV</div>
+            <div id="fn-cur-b2c" class="upload-fn" style="display:none;font-size:12px;"></div>
+          </div>
+          <input type="file" id="f-cur-b2c" accept=".csv,.tsv,.xlsx,.xls" style="display:none" onchange="onCurFile('b2c',this)">
+          <div id="res-cur-b2c" style="margin-top:10px;"></div>
+        </div>
+        <!-- B2B Current -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#1a2e4a;margin-bottom:8px;">🏭 B2B Actuals — Holded</div>
+          <div class="upload-zone" id="uz-cur-b2b" onclick="document.getElementById('f-cur-b2b').click()">
+            <div class="upload-icon" style="font-size:22px;">📄</div>
+            <div class="upload-text" style="font-size:12px;">Click to upload Holded CSV or Excel</div>
+            <div id="fn-cur-b2b" class="upload-fn" style="display:none;font-size:12px;"></div>
+          </div>
+          <input type="file" id="f-cur-b2b" accept=".csv,.tsv,.xlsx,.xls" style="display:none" onchange="onCurFile('b2b',this)">
+          <div id="res-cur-b2b" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <hr class="divider">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-success" onclick="importCurrentActuals()">▶ Import Actuals → Tracker</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearCurrentActuals()">🗑 Clear</button>
+        <div id="curActualsMsg" style="font-size:13px;"></div>
+      </div>
+      <div id="curActualsStatus" style="display:none;margin-top:16px;padding:12px 16px;background:#f0fff7;border-radius:8px;border-left:4px solid #27ae60;">
+        <div style="font-size:12px;color:#1e8449;font-weight:700;">✅ Actuals imported successfully</div>
+        <div id="curActualsDetail" style="font-size:12px;color:#1e8449;margin-top:4px;"></div>
+      </div>
+    </div>
+  </div><!-- /tab-import -->
+
+  <!-- ════════════════════════════════════════════
+       TAB 2 · FORECAST
+  ════════════════════════════════════════════ -->
+  <div class="content tab-pane" id="tab-forecast">
+    <div class="card">
+      <!-- Row 1: core settings -->
+      <div class="form-row" style="margin-bottom:4px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Forecast Year</label>
+          <select class="form-control" id="fc-year" style="width:110px;" onchange="markFcDirty()"></select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Base Year</label>
+          <select class="form-control" id="fc-base" style="width:110px;" onchange="markFcDirty()"></select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Growth Rate (%)</label>
+          <input type="number" class="form-control" id="fc-growth" value="10" step="0.5" style="width:110px;" oninput="markFcDirty()">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn-recalc" id="btn-recalc" onclick="generateForecast()">🔄 Calculate Forecast</button>
+        </div>
+      </div>
+      <!-- Saved-state bar -->
+      <div id="fc-saved-bar" class="fc-saved-bar clean" style="display:none;"></div>
+      <!-- Row 2: view controls -->
+      <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Time View</label><br>
+          <div class="view-toggle">
+            <button class="view-toggle-btn active" id="view-btn-monthly"  onclick="setFcView('monthly')">Monthly</button>
+            <button class="view-toggle-btn"        id="view-btn-quarterly" onclick="setFcView('quarterly')">Quarterly</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Group By</label>
+          <select class="form-control" id="fc-group" style="width:160px;" onchange="renderForecastTable()">
+            <option value="none">No Grouping</option>
+            <option value="family">Product Family</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Channel</label>
+          <select class="form-control" id="fc-channel" style="width:130px;" onchange="renderForecastTable()">
+            <option value="combined">Combined</option>
+            <option value="b2c">B2C Only</option>
+            <option value="b2b">B2B Only</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:160px;">
+          <label class="form-label">🔍 Search SKU / Product</label>
+          <input type="text" class="form-control" id="fc-filter" placeholder="Type to filter…" oninput="renderForecastTable()">
+        </div>
+        <div style="align-self:flex-end;padding-bottom:2px;">
+          <input type="hidden" id="fc-view" value="monthly">
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card gold"><div class="stat-label">Annual Forecast</div><div class="stat-value" id="fs-total">—</div><div class="stat-sub">total units</div></div>
+      <div class="stat-card green"><div class="stat-label">SKUs Forecast</div><div class="stat-value" id="fs-skus">—</div><div class="stat-sub">incl. new SKUs</div></div>
+      <div class="stat-card blue"><div class="stat-label">Growth Applied</div><div class="stat-value" id="fs-growth">—</div><div class="stat-sub">vs. base year</div></div>
+      <div class="stat-card red"><div class="stat-label">Peak Month</div><div class="stat-value" id="fs-peak">—</div><div class="stat-sub" id="fs-peakM">—</div></div>
+    </div>
+
+    <div class="card">
+      <div id="fc-empty" class="empty"><div class="ei">🔮</div><p>Process your sales data first — the forecast will appear here.</p></div>
+      <div class="tbl-wrap" id="fc-table"></div>
+    </div>
+  </div><!-- /tab-forecast -->
+
+  <!-- ════════════════════════════════════════════
+       TAB 3 · NEW SKU
+  ════════════════════════════════════════════ -->
+  <div class="content tab-pane" id="tab-newsku">
+    <div class="grid-2" style="align-items:start;">
+      <!-- LEFT: form -->
+      <div>
+        <div class="card">
+          <div class="card-title">✨ New SKU Forecast Creator</div>
+          <div class="form-group">
+            <label class="form-label">New SKU Code</label>
+            <input type="text" class="form-control" id="ns-code" placeholder="e.g. OC-2026-015">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Product Name</label>
+            <input type="text" class="form-control" id="ns-name" placeholder="e.g. Santa María Deluxe 1:65">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reference SKU (similar existing product)</label>
+            <select class="form-control" id="ns-ref" onchange="previewNewSKU()">
+              <option value="">— Select reference SKU —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">% of Reference SKU</label>
+            <input type="number" class="form-control" id="ns-pct" value="60" min="1" max="500" oninput="previewNewSKU()">
+            <div style="font-size:11.5px;color:#8795a1;margin-top:4px;">e.g. 60 means new SKU is forecast at 60% of the reference's monthly units</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Channel Contribution</label>
+            <select class="form-control" id="ns-channel">
+              <option value="both">Both B2C + B2B (inherit from reference)</option>
+              <option value="b2c">B2C Only</option>
+              <option value="b2b">B2B Only</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Release Month</label>
+            <select class="form-control" id="ns-relmonth" onchange="previewNewSKU()">
+              <option value="1">January (full year)</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            <div style="font-size:11.5px;color:#8795a1;margin-top:4px;">Months before the release date will be set to 0 units.</div>
+          </div>
+                    <button class="btn btn-gold" style="width:100%;justify-content:center;" onclick="addNewSKU()">➕ Add to Forecast</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📦 New SKUs in Forecast</div>
+          <div id="ns-list"><div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">📦</div><p>No new SKUs yet</p></div></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: preview -->
+      <div class="card" style="position:sticky;top:80px;">
+        <div class="card-title">👁 Monthly Preview</div>
+        <div id="ns-preview"><div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">🔮</div><p>Select a reference SKU to preview</p></div></div>
+      </div>
+    </div>
+  </div><!-- /tab-newsku -->
+
+  <!-- ════════════════════════════════════════════
+       TAB 4 · TRACKER
+  ════════════════════════════════════════════ -->
+  <div class="content tab-pane" id="tab-tracker">
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Tracking Year</label>
+          <select class="form-control" id="tr-year" style="width:110px;" onchange="renderTracker()"></select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Actuals Entered Up To</label>
+          <select class="form-control" id="tr-month" style="width:145px;" onchange="renderTracker()">
+            <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+            <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+            <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+            <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Alert Threshold (%)</label>
+          <input type="number" class="form-control" id="tr-threshold" value="20" min="5" style="width:90px;" oninput="renderTracker()">
+        </div>
+        <button class="btn btn-success" onclick="recalcRemainingForecast()" style="align-self:flex-end;" title="Adjust future months based on YTD trend">📐 Recalc Remaining</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card gold"><div class="stat-label">YTD Forecast</div><div class="stat-value" id="ts-fcst">—</div><div class="stat-sub">units planned</div></div>
+      <div class="stat-card green"><div class="stat-label">YTD Actuals</div><div class="stat-value" id="ts-actuals">—</div><div class="stat-sub">units sold</div></div>
+      <div class="stat-card blue"><div class="stat-label">YTD Variance</div><div class="stat-value" id="ts-var">—</div><div class="stat-sub" id="ts-varPct">vs forecast</div></div>
+      <div class="stat-card red"><div class="stat-label">SKUs Alerting</div><div class="stat-value" id="ts-alerts">—</div><div class="stat-sub" id="ts-alertLbl">—</div></div>
+    </div>
+
+    <!-- ── ANALYST PANEL — top position ── -->
+    <div class="card analyst-section" id="analyst-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="margin:0;">🧠 Analyst — YTD Intelligence</div>
+        <span style="font-size:11.5px;color:#8795a1;">Auto-updated · based on actuals entered above</span>
+      </div>
+      <div id="analyst-body"><div class="empty" style="padding:20px;"><div class="ei">🧠</div><p>Enter actuals data to activate the analyst.</p></div></div>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:14px;">
+      💡 To update actuals, go to <strong>📥 Data Import → Current Year Actuals</strong> and re-upload your latest Shopify and Holded exports.
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="card-title" style="margin:0;">Forecast vs. Actuals by SKU</div>
+          <button id="btn-toggle-tracker-tbl" onclick="toggleTrackerTable()"
+            style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;font-size:11.5px;font-weight:700;color:#8795a1;cursor:pointer;transition:all .18s;"
+            title="Show / hide the detail table">
+            <span id="tracker-tbl-arrow" style="font-size:10px;display:inline-block;transition:transform .2s;">▼</span> Hide
+          </button>
+        </div>
+        <div style="font-size:12px;color:#8795a1;">Enter actual sales in the <span style="color:#27ae60;font-weight:700;">green cells</span> or use the upload panel above.</div>
+      </div>
+      <div id="tracker-tbl-wrap">
+        <!-- ── Filter bar ── -->
+        <div id="trkr-filter-bar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0 12px;border-bottom:1px solid #edf0f5;margin-bottom:12px;">
+          <!-- Search -->
+          <div style="position:relative;flex:1;min-width:180px;max-width:300px;">
+            <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;">🔍</span>
+            <input type="text" id="trkr-search" placeholder="Search SKU or product…"
+              oninput="filterTrackerTable()"
+              style="width:100%;box-sizing:border-box;padding:7px 10px 7px 32px;border:1.5px solid #dde3ed;border-radius:8px;font-size:13px;color:#2c3e50;outline:none;">
+          </div>
+          <!-- Status pills -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <button data-filter-btn="all"     onclick="setTrkrFilter(this,'all')"     style="padding:5px 12px;border-radius:99px;border:1.5px solid #2c3e50;background:#2c3e50;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;">All</button>
+            <button data-filter-btn="above"   onclick="setTrkrFilter(this,'above')"   style="padding:5px 12px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#5a6a7a;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;">⬆ Above</button>
+            <button data-filter-btn="ontrack" onclick="setTrkrFilter(this,'ontrack')" style="padding:5px 12px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#5a6a7a;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;">✓ On Track</button>
+            <button data-filter-btn="below"   onclick="setTrkrFilter(this,'below')"   style="padding:5px 12px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#5a6a7a;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;">⬇ Below</button>
+            <button data-filter-btn="nodata"  onclick="setTrkrFilter(this,'nodata')"  style="padding:5px 12px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#5a6a7a;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;">— No Data</button>
+          </div>
+          <!-- Row count + Revise button -->
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+            <div id="trkr-filter-count" style="font-size:12px;color:#8795a1;white-space:nowrap;"></div>
+            <button id="btn-revise-listed" onclick="openReviseModal()"
+              style="display:none;padding:6px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,#2c3e50,#3d5166);color:#fff;font-size:12px;font-weight:700;cursor:pointer;gap:5px;align-items:center;box-shadow:0 2px 6px rgba(44,62,80,.25);transition:all .18s;"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 10px rgba(44,62,80,.35)';"
+              onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(44,62,80,.25)';">
+              📋 Revise Forecast
+            </button>
+          </div>
+        </div>
+        <!-- ── end filter bar ── -->
+        <div id="tr-empty" class="empty"><div class="ei">📊</div><p>Generate a forecast first, then track actuals here.</p></div>
+        <div class="tbl-wrap" id="tr-table"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📜 Forecast Revision History</div>
+      <div id="rev-list"><div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">📋</div><p>No revisions saved. Use "Save Revision" in the Forecast tab.</p></div></div>
+    </div>
+  </div><!-- /tab-tracker -->
+
+
+  <!-- ════════════════════════════════════════════
+       TAB 5 · STOCK MANAGEMENT
+  ════════════════════════════════════════════ -->
+  <div class="content tab-pane" id="tab-stock">
+
+    <!-- Settings -->
+    <div class="card">
+      <div class="card-title">⚙️ Stock Settings</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-top:12px;">
+        <div>
+          <label style="font-size:12px;color:#8795a1;font-weight:600;" data-i18n="stock_lbl_target">Target Coverage (weeks)</label>
+          <input type="number" id="stock-target" value="12" min="1" max="52" oninput="onStockSettingChange()"
+            style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #dde3ed;border-radius:8px;font-size:15px;font-weight:700;color:#2c3e50;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:#8795a1;font-weight:600;" data-i18n="stock_lbl_lead">Lead Time (weeks)</label>
+          <input type="number" id="stock-lead" value="8" min="1" max="52" oninput="onStockSettingChange()"
+            style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #dde3ed;border-radius:8px;font-size:15px;font-weight:700;color:#2c3e50;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:#8795a1;font-weight:600;" data-i18n="stock_lbl_safety">Safety Stock (weeks)</label>
+          <input type="number" id="stock-safety" value="2" min="0" max="12" oninput="onStockSettingChange()"
+            style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #dde3ed;border-radius:8px;font-size:15px;font-weight:700;color:#2c3e50;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:#8795a1;font-weight:600;" data-i18n="stock_lbl_ratesrc">Rate Source</label>
+          <select id="stock-rate-src" onchange="onStockSettingChange()"
+            style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #dde3ed;border-radius:8px;font-size:13px;background:#fff;color:#2c3e50;">
+            <option value="actuals" data-i18n="stock_src_actuals">Current Year Actuals</option>
+            <option value="forecast" data-i18n="stock_src_forecast">Forecast</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:10px 14px;background:#f8f9fc;border-radius:8px;font-size:12px;color:#8795a1;">
+        💡 <strong>Reorder trigger</strong> = Lead Time + Safety Stock. <strong>Recommended PO</strong> = units needed to reach Target Coverage from today.
+      </div>
+    </div>
+
+    <!-- Import stock levels -->
+    <div class="card">
+      <div class="card-header-row" style="cursor:pointer;" onclick="toggleStockImport()">
+        <div class="card-title" style="margin:0;" data-i18n="stock_import_title">📂 Import Current Stock Levels</div>
+        <button id="btn-toggle-stock-import"
+          style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;font-size:11.5px;font-weight:700;color:#8795a1;cursor:pointer;">
+          <span id="stock-import-arrow" style="font-size:10px;">▼</span> Hide
+        </button>
+      </div>
+      <div id="stock-import-wrap" style="margin-top:12px;">
+        <div style="font-size:12.5px;color:#8795a1;margin-bottom:10px;" data-i18n="stock_import_hint">Upload a CSV or Excel file with columns: SKU + Current Stock quantity. Auto-detected.</div>
+        <div onclick="document.getElementById('stock-file-input').click()"
+          style="border:2px dashed #dde3ed;border-radius:10px;padding:24px;text-align:center;cursor:pointer;background:#f8f9fc;transition:border-color .2s;"
+          onmouseover="this.style.borderColor='#c0c8d8'" onmouseout="this.style.borderColor='#dde3ed'">
+          <div style="font-size:32px;">📦</div>
+          <div style="font-weight:600;color:#3a4a5c;margin:6px 0;" data-i18n="stock_drop_title">Click to upload stock file</div>
+          <div style="font-size:12px;color:#8795a1;" data-i18n="stock_drop_sub">CSV, XLSX or PDF — needs SKU + stock quantity columns</div>
+          <input type="file" id="stock-file-input" accept=".csv,.xlsx,.xls,.pdf" style="display:none;" onchange="onStockFile(this)">
+        </div>
+        <div id="stock-import-result" style="margin-top:10px;"></div>
+        <div id="stock-import-actions" style="display:none;margin-top:10px;">
+          <button id="btn-import-stock" class="btn btn-primary" onclick="importStock()" data-i18n="stock_btn_import">✅ Import Stock Data</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row" id="stock-stats-row" style="display:none;">
+      <div class="stat-card">
+        <div class="stat-value" id="st-total">0</div>
+        <div class="stat-label" data-i18n="stock_stat_total">Total SKUs</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #e74c3c;">
+        <div class="stat-value" style="color:#e74c3c;" id="st-critical">0</div>
+        <div class="stat-label">🚨 <span data-i18n="stock_stat_critical">Critical (&lt;4w)</span></div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #e67e22;">
+        <div class="stat-value" style="color:#e67e22;" id="st-reorder">0</div>
+        <div class="stat-label">⚠️ <span data-i18n="stock_stat_reorder">Reorder (4–8w)</span></div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #27ae60;">
+        <div class="stat-value" style="color:#27ae60;" id="st-ok">0</div>
+        <div class="stat-label">✅ <span data-i18n="stock_stat_ok">OK (8–16w)</span></div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #3498db;">
+        <div class="stat-value" style="color:#3498db;" id="st-excess">0</div>
+        <div class="stat-label">📦 <span data-i18n="stock_stat_excess">Excess (&gt;16w)</span></div>
+      </div>
+    </div>
+
+    <!-- Stock table -->
+    <div class="card">
+      <div class="card-header-row" style="margin-bottom:12px;">
+        <div class="card-title" style="margin:0;" data-i18n="stock_tbl_title">📊 SKU Stock Status</div>
+        <button onclick="renderStockTable()" style="padding:4px 12px;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;font-size:11.5px;font-weight:700;color:#8795a1;cursor:pointer;">🔄 Refresh</button>
+      </div>
+      <!-- ── Column Legend ── -->
+      <div style="background:#f8f9fc;border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1px solid #edf0f5;">
+        <div style="font-size:10.5px;font-weight:700;color:#aab4c0;letter-spacing:.6px;margin-bottom:10px;text-transform:uppercase;">Column Guide</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;">
+
+          <div style="display:flex;gap:8px;">
+            <div style="width:3px;min-height:100%;background:#3498db;border-radius:99px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#2c3e50;">Current Stock</div>
+              <div style="font-size:11.5px;color:#6d7f8b;margin-top:2px;line-height:1.5;">Units in your warehouse today. Type directly in the cell or import from a file.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <div style="width:3px;min-height:100%;background:#9b59b6;border-radius:99px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#2c3e50;">Monthly Rate</div>
+              <div style="font-size:11.5px;color:#6d7f8b;margin-top:2px;line-height:1.5;">Average monthly sales. Source set in Settings above (Current Year Actuals or Forecast).</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <div style="width:3px;min-height:100%;background:#e67e22;border-radius:99px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#2c3e50;">Weeks Coverage</div>
+              <div style="font-size:11.5px;color:#6d7f8b;margin-top:2px;line-height:1.5;">Current Stock ÷ Weekly Rate. How many weeks your stock will last at the current pace.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <div style="width:3px;min-height:100%;background:#2c3e50;border-radius:99px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#2c3e50;">Status</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">
+                <span style="padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:#e74c3c;background:#fdf0ee;">🚨 Critical &lt;4w</span>
+                <span style="padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:#e67e22;background:#fef3e8;">⚠️ Reorder 4–8w</span>
+                <span style="padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:#27ae60;background:#eafaf1;">✅ OK 8–16w</span>
+                <span style="padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:#3498db;background:#ebf5fb;">📦 Excess &gt;16w</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <div style="width:3px;min-height:100%;background:#e74c3c;border-radius:99px;flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#2c3e50;">Recommended PO</div>
+              <div style="font-size:11.5px;color:#6d7f8b;margin-top:2px;line-height:1.5;">(Target + Lead Time + Safety − Coverage) × Weekly Rate. Units to order to reach your target. ✓ means no order needed.</div>
+            </div>
+          </div>
+
+        </div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e8ecf2;font-size:11.5px;color:#8795a1;line-height:1.6;">
+          ⚙️ <strong style="color:#5a6a7a;">Settings:</strong> &nbsp;
+          <strong style="color:#5a6a7a;">Target</strong> = ideal weeks of stock to hold &nbsp;·&nbsp;
+          <strong style="color:#5a6a7a;">Lead Time</strong> = weeks from placing a PO to receiving goods &nbsp;·&nbsp;
+          <strong style="color:#5a6a7a;">Safety Stock</strong> = buffer weeks against demand spikes &nbsp;·&nbsp;
+          <strong style="color:#5a6a7a;">Reorder trigger</strong> = Lead Time + Safety Stock
+        </div>
+      </div>
+      <!-- ── end Column Legend ── -->
+
+      <div id="stock-tbl-empty" class="empty">
+        <div class="ei">📦</div>
+        <p data-i18n="stock_tbl_empty">Import stock data or enter levels manually. Generate a forecast first to get monthly rate data.</p>
+      </div>
+      <div id="stock-tbl-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f0f2f7;text-align:left;">
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;" data-i18n="stock_col_sku">SKU</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;" data-i18n="stock_col_name">Name</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;text-align:center;" data-i18n="stock_col_qty">Current Stock</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;text-align:center;" data-i18n="stock_col_rate">Monthly Rate</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;text-align:center;" data-i18n="stock_col_weeks">Weeks Coverage</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;text-align:center;" data-i18n="stock_col_status">Status</th>
+              <th style="padding:10px 12px;font-weight:700;color:#3a4a5c;text-align:center;" data-i18n="stock_col_po">Recommended PO</th>
+            </tr>
+          </thead>
+          <tbody id="stock-tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tab-stock -->
+
+
+<!-- ══════════════════════════════════════════════
+     REVISE FORECAST MODAL
+══════════════════════════════════════════════ -->
+<div id="revise-modal-overlay"
+  style="display:none;position:fixed;inset:0;background:rgba(10,20,40,.45);z-index:1000;backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:680px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- Modal header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid #edf0f5;">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#1a2e4a;">📋 Revise Forecast</div>
+        <div id="revise-modal-subtitle" style="font-size:12px;color:#8795a1;margin-top:2px;"></div>
+      </div>
+      <button onclick="closeReviseModal()"
+        style="width:32px;height:32px;border-radius:50%;border:1.5px solid #dde3ed;background:#f0f2f7;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#8795a1;font-weight:700;">✕</button>
+    </div>
+
+    <!-- Adjustment controls -->
+    <div style="padding:16px 22px 0;">
+      <!-- Explanation banner -->
+      <div style="font-size:12px;color:#6d7f8b;background:#f4f6f9;border-radius:8px;padding:9px 13px;margin-bottom:14px;border-left:3px solid #c0c8d8;line-height:1.6;">
+        Applies a <strong>percentage adjustment</strong> to the forecast of each listed SKU — positive to increase,
+        negative to decrease. Monthly values are recalculated proportionally. A revision entry will be saved.
+      </div>
+      <!-- Controls row -->
+      <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="flex:1;min-width:140px;">
+          <label style="font-size:11.5px;color:#8795a1;font-weight:700;display:block;margin-bottom:5px;">Adjustment %</label>
+          <div style="position:relative;">
+            <input type="number" id="revise-adj" value="-20" step="1"
+              oninput="updateRevisePreview()"
+              style="width:100%;box-sizing:border-box;padding:9px 36px 9px 12px;border:2px solid #2c3e50;border-radius:8px;font-size:18px;font-weight:800;color:#2c3e50;outline:none;">
+            <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:800;color:#8795a1;">%</span>
+          </div>
+          <div id="revise-adj-hint" style="font-size:11px;color:#8795a1;margin-top:4px;">Enter a negative value to reduce, positive to increase.</div>
+        </div>
+        <div style="flex:2;min-width:200px;">
+          <label style="font-size:11.5px;color:#8795a1;font-weight:700;display:block;margin-bottom:5px;">Revision note (optional)</label>
+          <input type="text" id="revise-note" placeholder="e.g. Q1 below-pace adjustment — demand correction"
+            style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:13px;color:#2c3e50;outline:none;">
+        </div>
+      </div>
+    </div>
+
+    <!-- SKU preview table — scrollable -->
+    <div style="flex:1;overflow-y:auto;padding:0 22px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;background:#f0f2f7;z-index:1;">
+          <tr>
+            <th style="padding:8px 10px;text-align:left;font-weight:700;color:#3a4a5c;border-bottom:2px solid #dde3ed;">SKU</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:700;color:#3a4a5c;border-bottom:2px solid #dde3ed;">Product</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;color:#3a4a5c;border-bottom:2px solid #dde3ed;">Current Annual</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;color:#3a4a5c;border-bottom:2px solid #dde3ed;">New Annual</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;color:#3a4a5c;border-bottom:2px solid #dde3ed;">Change</th>
+          </tr>
+        </thead>
+        <tbody id="revise-preview-body"></tbody>
+        <tfoot>
+          <tr id="revise-total-row" style="background:#f8f9fc;font-weight:800;border-top:2px solid #dde3ed;">
+            <td colspan="2" style="padding:9px 10px;color:#1a2e4a;">TOTAL</td>
+            <td id="revise-total-current" style="padding:9px 10px;text-align:right;color:#2c3e50;"></td>
+            <td id="revise-total-new"     style="padding:9px 10px;text-align:right;"></td>
+            <td id="revise-total-change"  style="padding:9px 10px;text-align:right;"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Modal footer -->
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid #edf0f5;background:#f8f9fc;">
+      <button onclick="closeReviseModal()"
+        style="padding:9px 20px;border-radius:8px;border:1.5px solid #dde3ed;background:#fff;color:#5a6a7a;font-size:13px;font-weight:700;cursor:pointer;">
+        Cancel
+      </button>
+      <button onclick="confirmRevise()"
+        style="padding:9px 22px;border-radius:8px;border:none;background:linear-gradient(135deg,#27ae60,#1e8449);color:#fff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(39,174,96,.3);">
+        ✅ Apply &amp; Save Revision
+      </button>
+    </div>
+
+  </div>
+</div>
+
+</main><!-- /main -->
+
+<script>
+// ══════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════
+const MM  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MMF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+const S = {
+  hist: {},      // { year: { sku: { name, b2c:[12], b2b:[12] } } }
+  fcYear: 0, fcBase: 0, fcGrowth: 10,
+  fcSort: { col:'sku', dir:'asc' },
+  fcSavedParams: null,   // { year, base, growth, savedAt } — set when forecast is committed
+  fcCollapsed: {},
+  fc: {},        // { sku: { name, b2c:[12], b2b:[12], combined:[12], isNew, refSKU, refPct } }
+  actuals: {},   // { year: { sku: [12] | null } }
+  revisions: [], // [ { date, fcYear, fcBase, growth, fc, total, note } ]
+  newSKUs: [],   // mirror of new entries
+  lang: 'en',
+  stock: {},        // { sku: qty }
+  stockSettings: { target: 12, lead: 8, safety: 2, rateSrc: 'actuals' },
+  stockMeta: null,
+};
+
+
+// ══════════════════════════════════════════════════════
+//  TRANSLATIONS
+// ══════════════════════════════════════════════════════
+const TRANSLATIONS = {
+  en: {
+    nav_import: 'Data Import', nav_forecast: 'Forecast', nav_newsku: 'New SKU',
+    nav_tracker: 'Tracker',   nav_stock: 'Stock',
+    sidebar_label: 'Data loaded', sidebar_no_data: 'No data yet',
+    topbar_stock_sub: 'Track current inventory, coverage weeks, and purchase recommendations',
+    MM:  ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    MMF: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    purchase_title:        'Purchase Signals — Action Required',
+    purchase_urgent:       '🚨 Urgent — Buy Now',
+    purchase_careful:      '⚠️ Be Careful & Check',
+    purchase_reformulate:  '📉 Reformulate Forecast',
+    purchase_no_urgent:    'No urgent items',
+    purchase_no_careful:   'No items to watch',
+    purchase_no_reform:    'Demand on track',
+    purchase_all_ok:       'No significant purchase signals at this threshold.',
+    purchase_urgent_desc:  'Run-rate >40% above annual forecast — risk of stockout. Increase PO now.',
+    purchase_careful_desc: 'Run-rate 20–40% above forecast — watch stock levels. Act before it becomes urgent.',
+    purchase_reform_desc:  'Run-rate >20% below forecast — demand falling short. Review assumptions before ordering.',
+    purchase_legend:       'Signals compare your current run-rate projection (YTD avg × remaining months) vs the annual forecast.',
+    stock_lbl_target:  'Target Coverage (weeks)', stock_lbl_lead: 'Lead Time (weeks)',
+    stock_lbl_safety:  'Safety Stock (weeks)',    stock_lbl_ratesrc: 'Rate Source',
+    stock_src_actuals: 'Current Year Actuals',    stock_src_forecast: 'Forecast',
+    stock_import_title: '📂 Import Current Stock Levels',
+    stock_import_hint:  'Upload a CSV or Excel file with columns: SKU + Current Stock quantity.',
+    stock_drop_title:   'Click to upload stock file',
+    stock_drop_sub:     'CSV, XLSX or PDF — needs SKU + stock quantity columns',
+    stock_btn_import:   '✅ Import Stock Data',
+    stock_stat_total:   'Total SKUs',    stock_stat_critical: 'Critical (<4w)',
+    stock_stat_reorder: 'Reorder (4–8w)', stock_stat_ok: 'OK (8–16w)', stock_stat_excess: 'Excess (>16w)',
+    stock_tbl_title:    '📊 SKU Stock Status',
+    stock_tbl_empty:    'Import stock data or enter levels manually. Generate a forecast first.',
+    stock_col_sku: 'SKU', stock_col_name: 'Name', stock_col_qty: 'Current Stock',
+    stock_col_rate: 'Monthly Rate', stock_col_weeks: 'Weeks Coverage',
+    stock_col_status: 'Status', stock_col_po: 'Recommended PO',
+    stock_critical: 'Critical', stock_reorder: 'Reorder', stock_ok: 'OK',
+    stock_excess: 'Excess',    stock_no_rate: 'No rate',
+  },
+  es: {
+    nav_import: 'Importar Datos', nav_forecast: 'Previsión', nav_newsku: 'Nuevo SKU',
+    nav_tracker: 'Seguimiento',   nav_stock: 'Stock',
+    sidebar_label: 'Datos cargados', sidebar_no_data: 'Sin datos',
+    topbar_stock_sub: 'Controla el inventario actual, semanas de cobertura y recomendaciones de compra',
+    MM:  ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],
+    MMF: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+    purchase_title:        'Señales de Compra — Acción Requerida',
+    purchase_urgent:       '🚨 Urgente — Comprar Ya',
+    purchase_careful:      '⚠️ Cuidado — Verificar Stock',
+    purchase_reformulate:  '📉 Reformular Previsión',
+    purchase_no_urgent:    'Sin compras urgentes',
+    purchase_no_careful:   'Sin artículos a vigilar',
+    purchase_no_reform:    'Demanda en línea',
+    purchase_all_ok:       'Sin señales de compra significativas en este umbral.',
+    purchase_urgent_desc:  'Tasa de venta >40% por encima de la previsión anual — riesgo de rotura de stock. Aumenta el pedido ya.',
+    purchase_careful_desc: 'Tasa de venta 20–40% por encima de la previsión — vigila el stock. Actúa antes de que sea urgente.',
+    purchase_reform_desc:  'Tasa de venta >20% por debajo de la previsión — la demanda no llega. Revisa las hipótesis antes de pedir.',
+    purchase_legend:       'Las señales comparan tu proyección actual (media YTD × meses restantes) frente a la previsión anual.',
+    stock_lbl_target:  'Cobertura Objetivo (semanas)', stock_lbl_lead: 'Plazo de Entrega (semanas)',
+    stock_lbl_safety:  'Stock de Seguridad (sem)',     stock_lbl_ratesrc: 'Fuente de Tasa',
+    stock_src_actuals: 'Ventas Reales Año Actual',     stock_src_forecast: 'Previsión',
+    stock_import_title: '📂 Importar Niveles de Stock',
+    stock_import_hint:  'Sube un CSV, Excel o PDF con columnas: SKU + Cantidad en stock.',
+    stock_drop_title:   'Haz clic para subir el archivo de stock',
+    stock_drop_sub:     'CSV, XLSX o PDF — necesita columnas de SKU y cantidad',
+    stock_btn_import:   '✅ Importar Datos de Stock',
+    stock_stat_total:   'Total SKUs',    stock_stat_critical: 'Crítico (<4s)',
+    stock_stat_reorder: 'Reaprovisionar (4–8s)', stock_stat_ok: 'OK (8–16s)', stock_stat_excess: 'Exceso (>16s)',
+    stock_tbl_title:    '📊 Estado de Stock por SKU',
+    stock_tbl_empty:    'Importa datos de stock o introduce manualmente. Genera antes una previsión.',
+    stock_col_sku: 'SKU', stock_col_name: 'Nombre', stock_col_qty: 'Stock Actual',
+    stock_col_rate: 'Tasa Mensual', stock_col_weeks: 'Semanas Cobertura',
+    stock_col_status: 'Estado', stock_col_po: 'PO Recomendado',
+    stock_critical: 'Crítico', stock_reorder: 'Reaprovisionar', stock_ok: 'OK',
+    stock_excess: 'Exceso',    stock_no_rate: 'Sin tasa',
+  }
+};
+
+function t(key) {
+  return (TRANSLATIONS[S.lang] || TRANSLATIONS.en)[key] || key;
+}
+
+function setLang(lang) {
+  S.lang = lang;
+  // Mutate month arrays in place so all renders pick up immediately
+  const tr = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  MM.splice(0, 12, ...tr.MM);
+  MMF.splice(0, 12, ...tr.MMF);
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = t(key);
+    if (val !== key) el.textContent = val;
+  });
+  updateLangButtonStates();
+  // Re-render dynamic sections that use t()
+  if (Object.keys(S.fc).length) renderTracker();
+  renderStockTab();
+  persist();
+}
+
+function updateLangButtonStates() {
+  const active   = 'flex:1;padding:5px 0;border-radius:99px;border:1.5px solid #dde3ed;background:#2c3e50;color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;';
+  const inactive = 'flex:1;padding:5px 0;border-radius:99px;border:1.5px solid #dde3ed;background:#f0f2f7;color:#8795a1;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;';
+  const enBtn = document.getElementById('lang-en');
+  const esBtn = document.getElementById('lang-es');
+  if (enBtn) enBtn.style.cssText = S.lang === 'en' ? active : inactive;
+  if (esBtn) esBtn.style.cssText = S.lang === 'es' ? active : inactive;
+}
+
+function persist() {
+  try { localStorage.setItem('occre_v2', JSON.stringify(S)); } catch(e) {}
+}
+function loadPersisted() {
+  try {
+    const d = JSON.parse(localStorage.getItem('occre_v2') || 'null');
+    if (d) Object.assign(S, d);
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════
+function showTab(tab) {
+  ['import','forecast','newsku','tracker','stock'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('nav-'+t).classList.toggle('active', t===tab);
+    document.getElementById('topbar-'+t).style.display = t===tab ? 'flex' : 'none';
+  });
+  if (tab==='forecast') renderForecastTable();
+  if (tab==='newsku')   renderNSList();
+  if (tab==='tracker')  renderTracker();
+  if (tab==='stock')    renderStockTab();
+}
+
+// ══════════════════════════════════════════════════════
+//  COLUMN MAPPING KEYWORDS
+//  Covers both Shopify (B2C) and Holded (B2B) Spanish exports
+// ══════════════════════════════════════════════════════
+const KW = {
+  // B2C: "SKU de variante de producto" | B2B: "SKU"
+  sku:  ['sku','variant_sku','lineitem_sku','referencia','ref','codigo','code','product_id','variante'],
+  // B2B: "Item" (e.g. "12001 - San Juan 1:70") | general
+  name: ['name','title','lineitem_name','nombre','producto','product','description','item'],
+  // B2C: "Mes" (2025-01-01) | B2B: "Fecha" (datetime)
+  date: ['date','created_at','fecha','order_date','paid_at','fulfilled_at','mes'],
+  // B2C: "Artículos netos vendidos" | B2B: "Unidades"
+  qty:  ['quantity','qty','lineitem_quantity','cantidad','units','amount','unidades','netos','vendidos','artículos']
+};
+
+// ══════════════════════════════════════════════════════
+//  UNIVERSAL FILE PARSER (CSV via PapaParse · XLSX via SheetJS)
+// ══════════════════════════════════════════════════════
+function parseFileAuto(file, callback) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') {
+    parseXLSXFile(file, callback);
+  } else {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete: r => callback({ data: r.data, fields: r.meta.fields || [] })
+    });
+  }
+}
+
+function parseXLSXFile(file, callback) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    // Auto-detect header row: first row with 5+ non-empty cells
+    // Handles Holded's 3 metadata rows before the real header
+    let hi = 0;
+    for (let i = 0; i < Math.min(15, aoa.length); i++) {
+      const filled = aoa[i].filter(c => c !== '' && c !== null && c !== undefined).length;
+      if (filled >= 5) { hi = i; break; }
+    }
+
+    const rawHeaders = aoa[hi];
+    const headers = rawHeaders.map(h => String(h || '').trim());
+    const fields  = headers.filter(h => h !== '');
+
+    const data = aoa.slice(hi + 1)
+      .filter(r => r.some(c => c !== '' && c !== null && c !== undefined))
+      .map(row => {
+        const obj = {};
+        headers.forEach((h, i) => {
+          if (!h) return;
+          const v = row[i];
+          // SheetJS returns Date objects when cellDates:true — keep them as-is
+          obj[h] = (v !== undefined && v !== null) ? v : '';
+        });
+        return obj;
+      });
+
+    callback({ data, fields });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════
+//  SMART AUTO-DETECT + PROCESS ENGINE
+//  Identifies file format automatically — no user mapping needed
+// ══════════════════════════════════════════════════════
+function autoDetectAndProcess(data, fields, filterYear) {
+  // filterYear: if set (number), only keep rows for that year
+  if (!data || !data.length) return { ok: false, msg: 'No data rows found in file.' };
+
+  const fLow = fields.map(c => String(c).toLowerCase());
+
+  function findCol(keywords) {
+    for (const kw of keywords) {
+      const idx = fLow.findIndex(c => c.includes(kw));
+      if (idx >= 0) return fields[idx];
+    }
+    return null;
+  }
+
+  // ── Format fingerprinting ──
+  let fmt = 'Generic';
+  let skuCol, nameCol = null, dateCol, qtyCol;
+
+  const hasVariante = fLow.some(c => c.includes('variante'));
+  const hasMes      = fLow.some(c => c === 'mes' || c.endsWith(' mes') || c.startsWith('mes '));
+  const hasNetos    = fLow.some(c => c.includes('netos') || c.includes('vendidos') || c.includes('artículos') || c.includes('articulos'));
+  const hasSKUexact = fLow.includes('sku');
+  const hasUnidades = fLow.some(c => c === 'unidades');
+  const hasFecha    = fLow.some(c => c === 'fecha');
+  const hasItem     = fLow.some(c => c === 'item');
+
+  if (hasVariante || (hasMes && hasNetos)) {
+    // ── Shopify Monthly (B2C) ──
+    fmt     = 'Shopify Monthly';
+    skuCol  = findCol(['variante', 'variant sku', 'variant_sku', 'sku de variante']) || findCol(KW.sku);
+    dateCol = findCol(['mes', 'month']) || findCol(KW.date);
+    qtyCol  = findCol(['netos', 'vendidos', 'artículos', 'articulos']) || findCol(KW.qty);
+    nameCol = null;  // Shopify monthly has no name column
+  } else if (!hasVariante && hasSKUexact && hasUnidades && hasFecha) {
+    // ── Holded Orders (B2B) ──
+    fmt     = 'Holded Orders';
+    skuCol  = fields[fLow.indexOf('sku')];
+    dateCol = fields[fLow.indexOf('fecha')];
+    nameCol = hasItem ? fields[fLow.indexOf('item')] : null;
+    qtyCol  = fields[fLow.indexOf('unidades')];
+  } else {
+    // ── Generic: keyword matching ──
+    fmt     = 'Generic';
+    skuCol  = findCol(KW.sku);
+    dateCol = findCol(KW.date);
+    qtyCol  = findCol(KW.qty);
+    nameCol = findCol(KW.name);
+  }
+
+  if (!skuCol || !dateCol || !qtyCol) {
+    return { ok: false, msg: `Could not auto-detect columns. SKU=${skuCol||'?'} · Date=${dateCol||'?'} · Qty=${qtyCol||'?'}. Available: ${fields.slice(0,8).join(', ')}${fields.length>8?'…':''}` };
+  }
+
+  // ── Row aggregation ──
+  const result = {};  // { year: { sku: { name, months:[12] } } }
+  let rowsOk = 0, rowsSkip = 0;
+
+  data.forEach(row => {
+    const sku = String(row[skuCol] || '').trim();
+    if (!sku) { rowsSkip++; return; }
+
+    const qty = parseFloat(row[qtyCol]) || 0;
+    if (qty <= 0) { rowsSkip++; return; }
+
+    const d = parseAnyDate(row[dateCol]);
+    if (!d) { rowsSkip++; return; }
+
+    const year = d.getFullYear();
+    if (filterYear != null && year !== filterYear) { rowsSkip++; return; }
+
+    const mo = d.getMonth();
+    const name = (nameCol && row[nameCol]) ? String(row[nameCol]).trim() || sku : sku;
+
+    if (!result[year]) result[year] = {};
+    if (!result[year][sku]) result[year][sku] = { name, months: new Array(12).fill(0) };
+    result[year][sku].months[mo] += qty;
+    // Prefer non-SKU name if we have one
+    if (name !== sku && result[year][sku].name === sku) result[year][sku].name = name;
+    rowsOk++;
+  });
+
+  const years    = Object.keys(result).map(Number).sort();
+  const skuCount = years.reduce((t, yr) => t + Object.keys(result[yr]).length, 0);
+
+  if (rowsOk === 0) {
+    const hint = filterYear ? `No rows found for ${filterYear}.` : 'No valid rows processed.';
+    return { ok: false, msg: `${hint} Rows inspected: ${data.length}. Verify SKU, date and quantity columns have data.` };
+  }
+
+  return { ok: true, fmt, skuCol, dateCol, qtyCol, nameCol, result,
+    stats: { rowsOk, rowsSkip, skuCount, years } };
+}
+
+// ══════════════════════════════════════════════════════
+//  SECTION 1: HISTORICAL DATA — ADD YEAR
+// ══════════════════════════════════════════════════════
+const histStaging = {
+  b2c: { processed: null, info: null },   // auto-detected result
+  b2b: { processed: null, info: null }
+};
+
+function toggleAddYear() {
+  const f = document.getElementById('addYearForm');
+  const showing = f.style.display !== 'none';
+  f.style.display = showing ? 'none' : 'block';
+  if (!showing) {
+    // Reset staging data
+    ['b2c','b2b'].forEach(ch => {
+      histStaging[ch].processed = null;
+      histStaging[ch].info = null;
+      document.getElementById('fn-hist-'+ch).style.display='none';
+      document.getElementById('uz-hist-'+ch).classList.remove('ready');
+      document.getElementById('res-hist-'+ch).innerHTML='';
+      document.getElementById('f-hist-'+ch).value='';
+    });
+    document.getElementById('addYearMsg').innerHTML='';
+  }
+}
+
+function onHistFile(ch, input) {
+  const file = input.files[0]; if (!file) return;
+  const fnEl  = document.getElementById('fn-hist-'+ch);
+  const resEl = document.getElementById('res-hist-'+ch);
+  fnEl.textContent = file.name; fnEl.style.display='block';
+  document.getElementById('uz-hist-'+ch).classList.add('ready');
+  resEl.innerHTML = '<div style="font-size:12px;color:#8795a1;margin-top:6px;">⏳ Analysing file…</div>';
+
+  parseFileAuto(file, ({ data, fields }) => {
+    const r = autoDetectAndProcess(data, fields, null);  // accept all years
+    histStaging[ch].processed = r.ok ? r.result : null;
+    histStaging[ch].info = r;
+    if (r.ok) {
+      const yrsLabel = r.stats.years.join(', ');
+      resEl.innerHTML = `<div style="padding:8px 10px;background:#eafaf1;border-radius:7px;border-left:3px solid #27ae60;font-size:12px;margin-top:6px;">
+        <strong style="color:#1e8449;">✅ ${r.fmt}</strong><br>
+        <span style="color:#1e8449;">${r.stats.rowsOk.toLocaleString()} rows · ${r.stats.years.length} year(s): ${yrsLabel} · ${r.stats.skuCount} SKU entries</span><br>
+        <span style="color:#2e7d32;opacity:.8;font-size:11px;">SKU="${r.skuCol}" · Date="${r.dateCol}" · Qty="${r.qtyCol}"${r.nameCol ? ' · Name="'+r.nameCol+'"' : ''}</span>
+      </div>`;
+    } else {
+      resEl.innerHTML = `<div style="padding:8px 10px;background:#fde8e8;border-radius:7px;border-left:3px solid #e74c3c;font-size:12px;color:#8b1a1a;margin-top:6px;">❌ ${r.msg}</div>`;
+    }
+  });
+}
+
+// updateHistMap removed — auto-detection replaces manual mapping
+
+function addHistYear() {
+  const msgEl = document.getElementById('addYearMsg');
+  const hasB2C = histStaging.b2c.processed !== null;
+  const hasB2B = histStaging.b2b.processed !== null;
+
+  if (!hasB2C && !hasB2B) {
+    msgEl.innerHTML='<span style="color:#e74c3c;">⚠️ Upload and successfully process at least one file first.</span>';
+    return;
+  }
+
+  const yearsAdded = new Set();
+
+  function mergeChannel(processed, ch) {
+    if (!processed) return;
+    Object.keys(processed).forEach(yearStr => {
+      const yr = parseInt(yearStr);
+      if (!S.hist[yr]) S.hist[yr] = {};
+      Object.keys(processed[yr]).forEach(sku => {
+        const entry = processed[yr][sku];
+        if (!S.hist[yr][sku]) {
+          S.hist[yr][sku] = { name: entry.name, b2c: new Array(12).fill(0), b2b: new Array(12).fill(0) };
+        }
+        entry.months.forEach((v, m) => { S.hist[yr][sku][ch][m] += v; });
+        if (entry.name && entry.name !== sku && S.hist[yr][sku].name === sku) {
+          S.hist[yr][sku].name = entry.name;
+        }
+      });
+      yearsAdded.add(yr);
+    });
+  }
+
+  mergeChannel(histStaging.b2c.processed, 'b2c');
+  mergeChannel(histStaging.b2b.processed, 'b2b');
+
+  if (!yearsAdded.size) { msgEl.innerHTML='<span style="color:#e74c3c;">❌ No year data found in uploaded files.</span>'; return; }
+
+  if (!S.histMeta) S.histMeta = {};
+  yearsAdded.forEach(yr => {
+    S.histMeta[yr] = {
+      addedAt: new Date().toLocaleString(),
+      b2cRows: histStaging.b2c.info?.stats?.rowsOk || 0,
+      b2bRows: histStaging.b2b.info?.stats?.rowsOk || 0,
+      skus: Object.keys(S.hist[yr]).length
+    };
+  });
+
+  toggleAddYear();  // close form
+  rebuildAfterHistChange();
+  persist();
+}
+
+function deleteHistYear(yr) {
+  if (!confirm(`Remove ${yr} from the historical dataset? This cannot be undone.`)) return;
+  delete S.hist[yr];
+  if (S.histMeta) delete S.histMeta[yr];
+  rebuildAfterHistChange();
+  persist();
+}
+
+function renderYearCards() {
+  const grid = document.getElementById('yearCardsGrid');
+  const none = document.getElementById('noYearsMsg');
+  const years = Object.keys(S.hist).map(Number).sort();
+
+  // Remove all existing year cards (keep the noYearsMsg node)
+  [...grid.children].forEach(c => { if (c.id !== 'noYearsMsg') c.remove(); });
+
+  if (!years.length) { none.style.display='block'; return; }
+  none.style.display='none';
+
+  years.forEach(yr => {
+    const d = S.hist[yr] || {};
+    const skuCount = Object.keys(d).length;
+    let b2cT=0,b2bT=0;
+    Object.values(d).forEach(r => { b2cT+=sum(r.b2c); b2bT+=sum(r.b2b); });
+    const meta = S.histMeta?.[yr];
+    const card = document.createElement('div');
+    card.className='card'; card.style.cssText='margin-bottom:0;position:relative;';
+    card.innerHTML=`
+      <div style="font-size:22px;font-weight:900;color:#1a2e4a;margin-bottom:6px;">${yr}</div>
+      <div style="font-size:12px;color:#8795a1;margin-bottom:2px;">📦 ${skuCount} SKUs</div>
+      <div style="font-size:12px;color:#27ae60;">🛒 B2C: ${fmt(b2cT)} units</div>
+      <div style="font-size:12px;color:#9b59b6;">🏭 B2B: ${fmt(b2bT)} units</div>
+      <div style="font-size:11px;color:#b0bec5;margin-top:6px;">${meta?.addedAt||''}</div>
+      <button onclick="deleteHistYear(${yr})" title="Remove year" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;font-size:14px;color:#ccd;">✕</button>`;
+    grid.appendChild(card);
+  });
+}
+
+function rebuildAfterHistChange() {
+  const years = Object.keys(S.hist).map(Number).sort();
+  if (!years.length) { renderYearCards(); document.getElementById('histSummaryCard').style.display='none'; return; }
+  const latestYr = years[years.length-1];
+  const allSKUs = new Set(); years.forEach(y=>Object.keys(S.hist[y]).forEach(s=>allSKUs.add(s)));
+
+  renderYearCards();
+
+  // Stats
+  document.getElementById('s-skus').textContent  = allSKUs.size;
+  document.getElementById('s-years').textContent = years.length;
+  document.getElementById('s-yearRange').textContent = years.join(', ');
+  let b2cT=0,b2bT=0;
+  Object.values(S.hist[latestYr]||{}).forEach(d=>{ b2cT+=sum(d.b2c); b2bT+=sum(d.b2b); });
+  document.getElementById('s-b2c').textContent = fmt(b2cT);
+  document.getElementById('s-b2b').textContent = fmt(b2bT);
+  document.getElementById('histSummaryCard').style.display='block';
+
+  // Preview year selector
+  const pvSel = document.getElementById('histPreviewYear');
+  pvSel.innerHTML='';
+  [...years].reverse().forEach(y=>{ const o=document.createElement('option');o.value=y;o.textContent=y;pvSel.appendChild(o); });
+  pvSel.value = latestYr;
+  renderHistPreview();
+
+  // Forecast year selectors
+  const fcY = document.getElementById('fc-year');
+  const fcB = document.getElementById('fc-base');
+  const trY = document.getElementById('tr-year');
+  [fcY,fcB,trY].forEach(el=>{ if(el) el.innerHTML=''; });
+  [latestYr+1, latestYr+2].forEach(y=>{
+    [fcY,trY].forEach(el=>{ if(!el) return; const o=document.createElement('option');o.value=y;o.textContent=y;el.appendChild(o); });
+  });
+  years.forEach(y=>{ if(!fcB) return; const o=document.createElement('option');o.value=y;o.textContent=y;fcB.appendChild(o); });
+  if(fcY) fcY.value=S.fcYear||latestYr+1;
+  if(fcB) fcB.value=S.fcBase||latestYr;
+  if(trY) trY.value=S.fcYear||latestYr+1;
+
+  // Current year selector
+  const curSel = document.getElementById('cur-year');
+  if (curSel) {
+    curSel.innerHTML='';
+    [latestYr+1, latestYr+2, ...years].forEach(y=>{ const o=document.createElement('option');o.value=y;o.textContent=y;curSel.appendChild(o); });
+    curSel.value = latestYr+1;
+  }
+
+  // Reference SKU selector (new SKU tab)
+  const refSel = document.getElementById('ns-ref');
+  if (refSel) {
+    refSel.innerHTML='<option value="">— Select reference SKU —</option>';
+    [...allSKUs].sort().forEach(sku=>{
+      const nm=S.hist[latestYr]?.[sku]?.name||sku;
+      const o=document.createElement('option');o.value=sku;o.textContent=`${sku} — ${nm}`;refSel.appendChild(o);
+    });
+  }
+
+  document.getElementById('sidebarStatus').textContent=`${allSKUs.size} SKUs · ${years.length} years`;
+  generateForecast();
+}
+
+function renderHistPreview() {
+  const yr = parseInt(document.getElementById('histPreviewYear')?.value);
+  if (!yr || !S.hist[yr]) return;
+  const d = S.hist[yr];
+  const skus = Object.keys(d).sort();
+  let h=`<table><thead><tr>
+    <th class="left">SKU</th><th class="left">Product</th>
+    ${MM.map(m=>`<th>${m}</th>`).join('')}
+    <th>B2C Tot</th><th>B2B Tot</th><th>Combined</th>
+  </tr></thead><tbody>`;
+  skus.forEach(sku=>{
+    const r=d[sku];
+    const comb=r.b2c.map((v,i)=>v+r.b2b[i]);
+    h+=`<tr><td class="left">${sku}</td><td class="left">${r.name}</td>
+      ${comb.map(v=>`<td>${v}</td>`).join('')}
+      <td>${fmt(sum(r.b2c))}</td><td>${fmt(sum(r.b2b))}</td><td><strong>${fmt(sum(comb))}</strong></td>
+    </tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('histTable').innerHTML=h;
+}
+
+// ══════════════════════════════════════════════════════
+//  SAMPLE DATA
+// ══════════════════════════════════════════════════════
+function loadSampleData() {
+  const SKUS = [
+    { sku:'OC-14005', name:'Santa María 1:65',         base:420, b2cR:.40 },
+    { sku:'OC-15001', name:'Titanic 1:300',             base:310, b2cR:.55 },
+    { sku:'OC-14007', name:'Cutty Sark 1:84',           base:280, b2cR:.38 },
+    { sku:'OC-14006', name:'Endeavour 1:65',            base:190, b2cR:.42 },
+    { sku:'OC-14003', name:'Golden Hind 1:85',          base:165, b2cR:.45 },
+    { sku:'OC-14004', name:'Bounty 1:85',               base:210, b2cR:.48 },
+    { sku:'OC-15003', name:'Victoria 1:90',             base:130, b2cR:.35 },
+    { sku:'OC-14008', name:'Amerigo Vespucci 1:100',    base:155, b2cR:.40 },
+    { sku:'OC-14009', name:'Pinta 1:65',                base:95,  b2cR:.50 },
+    { sku:'OC-14010', name:'Niña 1:65',                 base:88,  b2cR:.52 },
+  ];
+  const SEAS = [.65,.70,.82,.88,.92,.78,.80,.85,.98,1.10,1.38,1.48];
+  const YEARS = [2023,2024,2025];
+  S.hist = {}; S.histMeta = {};
+  YEARS.forEach((yr,yi) => {
+    S.hist[yr] = {};
+    SKUS.forEach(p => {
+      const growth = 1 + yi*0.09;
+      const b2c = SEAS.map(s => Math.max(1,Math.round(p.base * s * growth * p.b2cR)));
+      const b2b = SEAS.map(s => Math.max(1,Math.round(p.base * s * growth * (1-p.b2cR))));
+      S.hist[yr][p.sku] = { name:p.name, b2c, b2b };
+    });
+    S.histMeta[yr] = { addedAt:'Sample data', b2cRows:0, b2bRows:0, skus:SKUS.length };
+  });
+  // Also generate sample current-year actuals (first 3 months of 2026)
+  S.actuals[2026] = {};
+  SKUS.forEach(p => {
+    const b2c2025 = SEAS.map(s=>Math.max(1,Math.round(p.base*s*1.27*p.b2cR)));
+    const b2b2025 = SEAS.map(s=>Math.max(1,Math.round(p.base*s*1.27*(1-p.b2cR))));
+    const act = new Array(12).fill(null);
+    for (let m=0;m<3;m++) {
+      act[m] = Math.round((b2c2025[m]+b2b2025[m]) * (0.9 + Math.random()*0.2));
+    }
+    S.actuals[2026][p.sku] = act;
+  });
+  S.currentActualsMeta = { year:2026, addedAt: new Date().toLocaleString(), b2cRows:0, b2bRows:0, skusMatched:SKUS.length };
+  restoreCurActualsStatus();
+  rebuildAfterHistChange();
+  persist();
+}
+
+function parseAnyDate(s) {
+  if (!s && s !== 0) return null;
+  // SheetJS Date object (from XLSX with cellDates:true)
+  if (s instanceof Date) return isNaN(s.getTime()) ? null : s;
+  // Numeric Excel serial date (fallback when cellDates not applied)
+  if (typeof s === 'number') {
+    const d = new Date(Math.round((s - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const str = String(s).trim();
+  if (!str) return null;
+  // ISO: 2025-01-01 or 2025-01-01T... (Shopify "Mes" column)
+  let d = new Date(str.replace(/T.*/, ''));
+  if (!isNaN(d.getTime())) return d;
+  // DD/MM/YYYY or DD-MM-YYYY
+  const p = str.split(/[\/\-\.]/);
+  if (p.length === 3) {
+    if (+p[0] > 12) return new Date(+p[2], +p[1]-1, +p[0]);
+    return new Date(+p[2], +p[0]-1, +p[1]);
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════
+//  SECTION 2: CURRENT YEAR ACTUALS
+// ══════════════════════════════════════════════════════
+const curStaging = {
+  b2c: { processed: null, info: null },   // auto-detected result
+  b2b: { processed: null, info: null }
+};
+
+function updateCurYearLabel() {
+  const yr = parseInt(document.getElementById('cur-year')?.value);
+  const meta = S.currentActualsMeta;
+  const el = document.getElementById('curYearStatus');
+  if (el) {
+    if (meta && meta.year===yr) el.textContent=`Last import: ${meta.addedAt} · ${fmt(meta.skusMatched)} SKUs matched`;
+    else el.textContent='No actuals imported yet for this year';
+  }
+}
+
+function onCurFile(ch, input) {
+  const file = input.files[0]; if (!file) return;
+  const yr    = parseInt(document.getElementById('cur-year')?.value);
+  const fnEl  = document.getElementById('fn-cur-'+ch);
+  const resEl = document.getElementById('res-cur-'+ch);
+  fnEl.textContent = file.name; fnEl.style.display='block';
+  document.getElementById('uz-cur-'+ch).classList.add('ready');
+  resEl.innerHTML = '<div style="font-size:12px;color:#8795a1;margin-top:6px;">⏳ Analysing file…</div>';
+
+  parseFileAuto(file, ({ data, fields }) => {
+    const r = autoDetectAndProcess(data, fields, yr);  // filter to tracking year
+    curStaging[ch].processed = r.ok ? r.result : null;
+    curStaging[ch].info = r;
+    if (r.ok) {
+      resEl.innerHTML = `<div style="padding:8px 10px;background:#eafaf1;border-radius:7px;border-left:3px solid #27ae60;font-size:12px;margin-top:6px;">
+        <strong style="color:#1e8449;">✅ ${r.fmt}</strong><br>
+        <span style="color:#1e8449;">${r.stats.rowsOk.toLocaleString()} rows matched for ${yr} · ${r.stats.skuCount} SKUs</span><br>
+        <span style="color:#2e7d32;opacity:.8;font-size:11px;">SKU="${r.skuCol}" · Date="${r.dateCol}" · Qty="${r.qtyCol}"${r.nameCol ? ' · Name="'+r.nameCol+'"' : ''}</span>
+      </div>`;
+    } else {
+      resEl.innerHTML = `<div style="padding:8px 10px;background:#fde8e8;border-radius:7px;border-left:3px solid #e74c3c;font-size:12px;color:#8b1a1a;margin-top:6px;">❌ ${r.msg}</div>`;
+    }
+  });
+}
+
+// updateCurMap removed — auto-detection replaces manual mapping
+
+function importCurrentActuals() {
+  const yr    = parseInt(document.getElementById('cur-year')?.value);
+  const msgEl = document.getElementById('curActualsMsg');
+  const hasB2C = curStaging.b2c.processed !== null;
+  const hasB2B = curStaging.b2b.processed !== null;
+
+  if (!hasB2C && !hasB2B) {
+    msgEl.innerHTML='<span style="color:#e74c3c;">⚠️ Upload at least one file first — it will be auto-processed.</span>';
+    return;
+  }
+
+  S.actuals[yr] = {};
+  let skusMatched = 0;
+
+  function mergeCurChannel(processed) {
+    if (!processed || !processed[yr]) return;
+    Object.keys(processed[yr]).forEach(sku => {
+      const entry = processed[yr][sku];
+      if (!S.actuals[yr][sku]) {
+        S.actuals[yr][sku] = new Array(12).fill(null);
+        skusMatched++;
+      }
+      entry.months.forEach((v, m) => {
+        if (v > 0) {
+          if (S.actuals[yr][sku][m] === null) S.actuals[yr][sku][m] = 0;
+          S.actuals[yr][sku][m] += v;
+        }
+      });
+    });
+  }
+
+  mergeCurChannel(curStaging.b2c.processed);
+  mergeCurChannel(curStaging.b2b.processed);
+
+  if (skusMatched === 0) {
+    msgEl.innerHTML=`<span style="color:#e74c3c;">❌ No SKUs found for ${yr}. Ensure uploads contain data for that year.</span>`;
+    return;
+  }
+
+  // Auto-advance tracker month selector to latest month with data
+  const allMo = new Set();
+  Object.values(S.actuals[yr]).forEach(arr => arr.forEach((v,i) => { if(v!==null) allMo.add(i); }));
+  if (allMo.size) { const lm=Math.max(...allMo); const trM=document.getElementById('tr-month'); if(trM) trM.value=lm; }
+
+  const b2cRows = curStaging.b2c.info?.stats?.rowsOk || 0;
+  const b2bRows = curStaging.b2b.info?.stats?.rowsOk || 0;
+  S.currentActualsMeta = { year:yr, addedAt:new Date().toLocaleString(), b2cRows, b2bRows, skusMatched };
+  msgEl.innerHTML='';
+  restoreCurActualsStatus();
+  updateCurYearLabel();
+  const trY = document.getElementById('tr-year'); if(trY) trY.value=yr;
+  persist();
+}
+
+function restoreCurActualsStatus() {
+  const meta = S.currentActualsMeta;
+  const statusEl = document.getElementById('curActualsStatus');
+  const detailEl = document.getElementById('curActualsDetail');
+  if (!statusEl || !meta) return;
+  statusEl.style.display='block';
+  detailEl.textContent=`Year ${meta.year} · ${fmt(meta.skusMatched)} SKUs · ${fmt(meta.b2cRows)} B2C rows · ${fmt(meta.b2bRows)} B2B rows · Imported: ${meta.addedAt}`;
+}
+
+function clearCurrentActuals() {
+  const yr = parseInt(document.getElementById('cur-year')?.value);
+  if (!confirm(`Clear all actuals for ${yr}?`)) return;
+  S.actuals[yr]={}; S.currentActualsMeta=null;
+  document.getElementById('curActualsStatus').style.display='none';
+  document.getElementById('curActualsMsg').innerHTML=`<span style="color:#8795a1;">Actuals cleared for ${yr}.</span>`;
+  persist();
+}
+
+// ══════════════════════════════════════════════════════
+//  FORECAST SAVED-STATE HELPERS
+// ══════════════════════════════════════════════════════
+function markFcDirty() {
+  // Called whenever the user changes a forecast input WITHOUT pressing Calculate
+  updateFcSavedBar(true);
+}
+
+function updateFcSavedBar(dirty) {
+  const bar = document.getElementById('fc-saved-bar');
+  const btn = document.getElementById('btn-recalc');
+  if (!bar) return;
+
+  const p = S.fcSavedParams;
+  if (!p && !dirty) { bar.style.display='none'; return; }
+
+  bar.style.display = 'flex';
+
+  if (dirty) {
+    bar.className = 'fc-saved-bar dirty';
+    const savedLabel = p
+      ? `Last saved: ${p.savedAt} — Year ${p.year}, Base ${p.base}, Growth +${(+p.growth).toFixed(1)}%`
+      : 'No forecast saved yet.';
+    bar.innerHTML = `
+      <span class="bar-icon">⚠️</span>
+      <div>
+        <div class="bar-main">Settings changed — press Calculate to update the forecast</div>
+        <div class="bar-sub">${savedLabel}</div>
+      </div>`;
+    if (btn) btn.classList.add('dirty-pulse');
+  } else if (p.isRevision) {
+    bar.className = 'fc-saved-bar clean';
+    bar.style.borderLeftColor = '#3498db';
+    const sign = p.adjPct >= 0 ? '+' : '';
+    const totalUnits = fmt(Object.values(S.fc).reduce((t,d)=>t+sum(d.combined),0));
+    bar.innerHTML = `
+      <span class="bar-icon">📋</span>
+      <div>
+        <div class="bar-main">Selectively revised — <strong>${p.skusAffected} SKU${p.skusAffected!==1?'s':''}</strong> adjusted <strong>${sign}${p.adjPct}%</strong> · Year ${p.year}</div>
+        <div class="bar-sub">Revised on ${p.savedAt} · ${Object.keys(S.fc).length} SKUs total · ${totalUnits} units${p.revNote ? ` · "${p.revNote}"` : ''}</div>
+      </div>`;
+    if (btn) btn.classList.remove('dirty-pulse');
+  } else {
+    bar.className = 'fc-saved-bar clean';
+    bar.style.borderLeftColor = '';
+    bar.innerHTML = `
+      <span class="bar-icon">✅</span>
+      <div>
+        <div class="bar-main">Forecast saved — Year ${p.year} · Base ${p.base} · Growth +${(+p.growth).toFixed(1)}%</div>
+        <div class="bar-sub">Calculated on ${p.savedAt} · ${Object.keys(S.fc).length} SKUs · ${fmt(Object.values(S.fc).reduce((t,d)=>t+sum(d.combined),0))} units</div>
+      </div>`;
+    if (btn) btn.classList.remove('dirty-pulse');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  FORECAST GENERATION
+// ══════════════════════════════════════════════════════
+function generateForecast() {
+  const fcY = document.getElementById('fc-year'); if(!fcY) return;
+  const base = parseInt(document.getElementById('fc-base').value)||0;
+  const yr   = parseInt(fcY.value)||0;
+  const gr   = parseFloat(document.getElementById('fc-growth').value)/100;
+  S.fcYear=yr; S.fcBase=base; S.fcGrowth=gr*100;
+
+  const bData = S.hist[base];
+  if (!bData) { return; }
+
+  // Re-build from scratch (keep new SKUs)
+  const wasNew = {};
+  Object.keys(S.fc).forEach(k => { if(S.fc[k].isNew) wasNew[k]=S.fc[k]; });
+
+  S.fc = {};
+  Object.keys(bData).forEach(sku => {
+    const d = bData[sku];
+    const b2c = d.b2c.map(v=>Math.round(v*(1+gr)));
+    const b2b = d.b2b.map(v=>Math.round(v*(1+gr)));
+    S.fc[sku] = { name:d.name, b2c, b2b, combined:b2c.map((v,i)=>v+b2b[i]), isNew:false };
+  });
+
+  // Restore new SKUs
+  Object.keys(wasNew).forEach(k => { S.fc[k]=wasNew[k]; });
+
+  updateFcStats();
+  renderForecastTable();
+  updateTrYearSel(yr);
+
+  // Commit forecast — save params so dirty-state tracking works
+  S.fcSavedParams = {
+    year: yr, base, growth: (gr*100).toFixed(1),
+    savedAt: new Date().toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+  };
+  persist();
+  updateFcSavedBar(false);  // show "clean / saved" state
+}
+
+function updateFcStats() {
+  let total=0, skus=0, peak=0, peakM=0;
+  const mTot = new Array(12).fill(0);
+  Object.values(S.fc).forEach(d => {
+    skus++; d.combined.forEach((v,i)=>{ total+=v; mTot[i]+=v; });
+  });
+  mTot.forEach((v,i)=>{ if(v>peak){peak=v;peakM=i;} });
+  document.getElementById('fs-total').textContent  = fmt(total);
+  document.getElementById('fs-skus').textContent   = skus;
+  document.getElementById('fs-growth').textContent = S.fcGrowth.toFixed(1)+'%';
+  document.getElementById('fs-peak').textContent   = fmt(peak);
+  document.getElementById('fs-peakM').textContent  = MMF[peakM];
+}
+
+// ── SKU Family detector ──
+function getSkuFamily(sku) {
+  const s = String(sku).trim();
+  if (/^\d{4,6}$/.test(s)) {
+    const n = parseInt(s);
+    const prefix = Math.floor(n / 100) * 100;
+    return prefix + 'xx';
+  }
+  // Alphanumeric like OC-14005, OC-15003
+  const m = s.match(/\d{3,}/);
+  if (m) { return m[0].substring(0, m[0].length - 2) + 'xx'; }
+  return s.split(/[-_]/)[0];
+}
+
+function setFcView(view) {
+  document.getElementById('fc-view').value = view;
+  document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-btn-' + view).classList.add('active');
+  renderForecastTable();
+}
+
+function setFcSort(col) {
+  if (!S.fcSort) S.fcSort = { col:'sku', dir:'asc' };
+  if (S.fcSort.col === col) {
+    S.fcSort.dir = S.fcSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    S.fcSort = { col, dir: (col === 'total' || !isNaN(parseInt(col))) ? 'desc' : 'asc' };
+  }
+  renderForecastTable();
+}
+
+function toggleFcGroup(gName) {
+  if (!S.fcCollapsed) S.fcCollapsed = {};
+  S.fcCollapsed[gName] = !S.fcCollapsed[gName];
+  renderForecastTable();
+}
+
+function renderForecastTable() {
+  const tblEl   = document.getElementById('fc-table');
+  const emptyEl = document.getElementById('fc-empty');
+  const ch      = document.getElementById('fc-channel')?.value || 'combined';
+  const filter  = (document.getElementById('fc-filter')?.value || '').toLowerCase().trim();
+  const view    = document.getElementById('fc-view')?.value || 'monthly';
+  const groupBy = document.getElementById('fc-group')?.value || 'none';
+  const data    = S.fc;
+
+  if (!Object.keys(data).length) { tblEl.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+
+  // ── Column definitions ──
+  const isQtr = view === 'quarterly';
+  const QTR_LABELS = ['Q1 (Jan–Mar)', 'Q2 (Apr–Jun)', 'Q3 (Jul–Sep)', 'Q4 (Oct–Dec)'];
+  const QTR_MONTHS = [[0,1,2],[3,4,5],[6,7,8],[9,10,11]];
+  const colLabels  = isQtr ? QTR_LABELS : MM;
+  const numCols    = colLabels.length;
+
+  // ── Get display values for a SKU ──
+  function getVals(sku) {
+    const d = data[sku];
+    const raw = ch==='b2c' ? d.b2c : ch==='b2b' ? d.b2b : d.combined;
+    if (isQtr) return QTR_MONTHS.map(ms => ms.reduce((s,m) => s + raw[m], 0));
+    return raw.slice();
+  }
+
+  // ── Filter ──
+  let skus = Object.keys(data).filter(sku =>
+    !filter || sku.toLowerCase().includes(filter) || data[sku].name.toLowerCase().includes(filter)
+  );
+
+  // ── Sort ──
+  const sc = S.fcSort?.col || 'sku';
+  const sd = S.fcSort?.dir || 'asc';
+  skus.sort((a, b) => {
+    let va, vb;
+    if      (sc === 'sku')   { va = a;              vb = b;              }
+    else if (sc === 'name')  { va = data[a].name;   vb = data[b].name;   }
+    else if (sc === 'total') { va = sum(getVals(a)); vb = sum(getVals(b));}
+    else {
+      const i = parseInt(sc);
+      va = getVals(a)[i] || 0; vb = getVals(b)[i] || 0;
+    }
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return sd === 'asc' ? cmp : -cmp;
+  });
+
+  // ── Group ──
+  let groups = [{ name:'', skus }];  // flat = 1 unnamed group
+  if (groupBy === 'family') {
+    const map = {};
+    skus.forEach(sku => {
+      const fam = getSkuFamily(sku);
+      if (!map[fam]) map[fam] = [];
+      map[fam].push(sku);
+    });
+    groups = Object.keys(map).sort().map(name => ({ name, skus: map[name] }));
+  }
+
+  // ── Sort indicator helper ──
+  function sortArrow(col) {
+    const isActive = S.fcSort?.col === col;
+    const arrow    = isActive ? (S.fcSort.dir === 'asc' ? '▲' : '▼') : '⇅';
+    return `<span class="sort-arrow ${isActive?'active':''}">${arrow}</span>`;
+  }
+  function th(label, col, align='right') {
+    return `<th class="${align==='left'?'left ':''} sortable" onclick="setFcSort('${col}')">${label}${sortArrow(col)}</th>`;
+  }
+
+  // ── Build table ──
+  let h = `<table><thead><tr>
+    ${th('SKU','sku','left')}
+    ${th('Product','name','left')}
+    ${colLabels.map((l,i) => th(l, String(i))).join('')}
+    ${th('Annual Total','total')}
+  </tr></thead><tbody>`;
+
+  const totCols = new Array(numCols).fill(0);
+  let gTot = 0;
+
+  groups.forEach(({ name: gName, skus: gSkus }) => {
+    // Group header
+    if (groupBy === 'family' && gName) {
+      const gTotal  = sum(gSkus.map(s => sum(getVals(s))));
+      const collapsed = S.fcCollapsed?.[gName];
+      const safeG   = gName.replace(/'/g, "\'");
+      h += `<tr class="grp-hdr" onclick="toggleFcGroup('${safeG}')">
+        <td colspan="${2 + numCols + 1}">
+          <span class="grp-arrow ${collapsed?'':'open'}">▶</span>
+          <strong>${gName}</strong>
+          <span style="float:right;font-weight:600;color:#8795a1;font-size:11.5px;">${gSkus.length} SKUs &nbsp;·&nbsp; ${fmt(gTotal)} units/yr</span>
+        </td>
+      </tr>`;
+      if (collapsed) return;
+    }
+
+    gSkus.forEach(sku => {
+      const d    = data[sku];
+      const vals = getVals(sku);
+      const tot  = sum(vals);
+      gTot += tot;
+      vals.forEach((v, i) => totCols[i] += v);
+      const rc = d.isNew ? 'tbl-new' : '';
+
+      const cells = isQtr
+        ? vals.map(v => `<td>${fmt(v)}</td>`).join('')
+        : vals.map((v, mi) => `<td><input type="number" class="cell-input" value="${v}" min="0"
+              onchange="editFcCell('${sku}','${ch}',${mi},this.value)"></td>`).join('');
+
+      h += `<tr class="${rc}">
+        <td class="left">${sku}${d.isNew?' <span class="badge badge-yellow">NEW</span>':''}</td>
+        <td class="left">${d.name}</td>
+        ${cells}
+        <td><strong>${fmt(tot)}</strong></td>
+      </tr>`;
+    });
+  });
+
+  h += `<tr class="tbl-total">
+    <td class="left" colspan="2">TOTAL</td>
+    ${totCols.map(v=>`<td><strong>${fmt(v)}</strong></td>`).join('')}
+    <td><strong>${fmt(gTot)}</strong></td>
+  </tr></tbody></table>`;
+
+  tblEl.innerHTML = h;
+}
+
+function editFcCell(sku, ch, mi, val) {
+  const v = Math.max(0,parseInt(val)||0);
+  const d = S.fc[sku]; if(!d) return;
+  d[ch==='combined'?'combined':ch][mi] = v;
+  if (ch==='combined') {
+    // Distribute b2c/b2b proportionally
+    const bY = S.hist[S.fcBase]; const bD = bY?.[sku];
+    const r = bD ? (bD.b2c[mi]/(bD.b2c[mi]+bD.b2b[mi]||1)) : .5;
+    d.b2c[mi]=Math.round(v*r); d.b2b[mi]=v-d.b2c[mi];
+  } else {
+    d.combined[mi] = d.b2c[mi]+d.b2b[mi];
+  }
+  updateFcStats(); persist();
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT FORECAST CSV
+// ══════════════════════════════════════════════════════
+function exportForecastCSV() {
+  let csv = `OcCre SKU Forecast ${S.fcYear} (Base: ${S.fcBase} +${S.fcGrowth.toFixed(1)}%)\n`;
+  csv += 'SKU,Product Name,'+MM.join(',')+',Annual Total\n';
+  Object.keys(S.fc).sort().forEach(sku=>{
+    const d=S.fc[sku]; const tot=sum(d.combined);
+    csv+=`"${sku}","${d.name}",${d.combined.join(',')},${tot}\n`;
+  });
+  dlCSV(csv, `OcCre_Forecast_${S.fcYear}.csv`);
+}
+
+// ══════════════════════════════════════════════════════
+//  REVISION HISTORY
+// ══════════════════════════════════════════════════════
+function saveForecastRevision() {
+  if (!Object.keys(S.fc).length) { alert('Generate a forecast first.'); return; }
+  const note = prompt('Optional revision note (e.g. "Q1 actuals applied"):')||'';
+  const total = Object.values(S.fc).reduce((t,d)=>t+sum(d.combined),0);
+  S.revisions.unshift({
+    date: new Date().toLocaleString(),
+    fcYear: S.fcYear, fcBase: S.fcBase, growth: S.fcGrowth,
+    fc: JSON.parse(JSON.stringify(S.fc)),
+    total, note
+  });
+  persist(); renderRevList(); alert('✅ Revision saved!');
+}
+
+function renderRevList() {
+  const el = document.getElementById('rev-list'); if(!el) return;
+  if (!S.revisions.length) { el.innerHTML=`<div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">📋</div><p>No revisions saved yet.</p></div>`; return; }
+  el.innerHTML = [...S.revisions].reverse().map((r, ri) => {
+    const i = S.revisions.length - 1 - ri;   // real index for restore
+    if (r.adjPct !== undefined) {
+      // ── Tracker selective revision ──
+      const sign = r.adjPct >= 0 ? '+' : '';
+      return `<div class="rev-item" style="border-left:3px solid #3498db;background:#f0f7ff;">
+        <div style="flex:1;">
+          <div class="rev-date" style="display:flex;align-items:center;gap:7px;">
+            <span style="background:#3498db;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;">📊 TRACKER</span>
+            📅 ${r.date}
+          </div>
+          <div class="rev-desc" style="margin-top:4px;">
+            <strong>${sign}${r.adjPct}% on ${r.skusAffected} SKU${r.skusAffected!==1?'s':''}</strong>
+            · Year ${r.fcYear} · ${fmt(r.total)} units total
+            ${r.note ? `<br><span style="color:#5a6a7a;font-style:italic;">"${r.note}"</span>` : ''}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="restoreRev(${i})" title="Restore this forecast snapshot">↩ Restore</button>
+      </div>`;
+    } else {
+      // ── Global forecast calculation ──
+      return `<div class="rev-item">
+        <div style="flex:1;">
+          <div class="rev-date">📅 ${r.date}</div>
+          <div class="rev-desc">
+            <strong>Forecast ${r.fcYear}</strong> · Base ${r.fcBase} · Growth +${(+r.growth).toFixed(1)}% · ${fmt(r.total)} units
+            ${r.note ? `<br><span style="color:#5a6a7a;font-style:italic;">"${r.note}"</span>` : ''}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="restoreRev(${i})" title="Restore this forecast snapshot">↩ Restore</button>
+      </div>`;
+    }
+  }).join('');
+}
+
+function restoreRev(i) {
+  if (!confirm('Restore this forecast? Current data will be replaced.')) return;
+  const r = S.revisions[i];
+  S.fc = JSON.parse(JSON.stringify(r.fc));
+  S.fcYear=r.fcYear; S.fcBase=r.fcBase; S.fcGrowth=r.growth;
+  document.getElementById('fc-growth').value=r.growth.toFixed(1);
+  updateFcStats(); renderForecastTable(); persist(); alert('✅ Restored!');
+}
+
+// ══════════════════════════════════════════════════════
+//  NEW SKU
+// ══════════════════════════════════════════════════════
+function previewNewSKU() {
+  const ref    = document.getElementById('ns-ref').value;
+  const pct    = parseFloat(document.getElementById('ns-pct').value)/100||.6;
+  const relMo  = parseInt(document.getElementById('ns-relmonth')?.value||'1', 10); // 1–12
+  const prev   = document.getElementById('ns-preview');
+  if (!ref || !S.fc[ref]) { prev.innerHTML=`<div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">🔮</div><p>Select a reference SKU</p></div>`; return; }
+  const refD = S.fc[ref];
+  // Apply release month: months before relMo (index < relMo-1) are 0
+  const vals = refD.combined.map((v,i) => i < relMo-1 ? 0 : Math.round(v*pct));
+  const tot  = sum(vals); const refTot = sum(refD.combined);
+  const relLabel = relMo === 1 ? 'Full Year' : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][relMo-1];
+  prev.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <span class="chip">📦 Ref: ${ref}</span>
+      <span class="chip">📊 ${(pct*100).toFixed(0)}%</span>
+      <span class="chip">📅 From ${relLabel}</span>
+      <span class="chip">📈 ${fmt(tot)} units/yr</span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="left">SKU</th>${MM.map((m,i)=>`<th style="${i<relMo-1?'color:#bbb;':''}">${m}</th>`).join('')}<th>Total</th></tr></thead>
+      <tbody>
+        <tr><td class="left" style="color:#8795a1;">Reference</td>${refD.combined.map((v,i)=>`<td style="color:${i<relMo-1?'#ddd':'#8795a1'};">${i<relMo-1?'—':v}</td>`).join('')}<td style="color:#8795a1;">${fmt(refTot)}</td></tr>
+        <tr class="tbl-new"><td class="left"><strong>New SKU</strong></td>${vals.map((v,i)=>`<td style="${i<relMo-1?'color:#bbb;background:#f8f9fa;':''}"><strong>${i<relMo-1?'—':v}</strong></td>`).join('')}<td><strong>${fmt(tot)}</strong></td></tr>
+      </tbody>
+    </table></div>
+    ${relMo>1?`<div style="font-size:11.5px;color:#8795a1;margin-top:8px;padding:6px 10px;background:#fff8e1;border-radius:6px;border-left:3px solid #f0c040;">
+      📅 Release in <strong>${relLabel}</strong> — months Jan–${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][relMo-1]} shown as pre-release (0 units).
+    </div>` : ''}`;
+}
+
+function addNewSKU() {
+  const code   = document.getElementById('ns-code').value.trim();
+  const name   = document.getElementById('ns-name').value.trim();
+  const ref    = document.getElementById('ns-ref').value;
+  const pct    = parseFloat(document.getElementById('ns-pct').value)/100||.6;
+  const ch     = document.getElementById('ns-channel').value;
+  const relMo  = parseInt(document.getElementById('ns-relmonth')?.value||'1', 10);
+  if (!code||!name) { alert('Enter SKU code and product name.'); return; }
+  if (!ref)         { alert('Select a reference SKU.');          return; }
+  if (S.fc[code])   { alert('This SKU already exists in the forecast.'); return; }
+
+  const refD   = S.fc[ref];
+  // Apply release month zeroing
+  const combined = refD.combined.map((v,i) => i < relMo-1 ? 0 : Math.round(v*pct));
+  let b2c, b2b;
+  if (ch==='b2c') { b2c=combined.map(v=>v); b2b=new Array(12).fill(0); }
+  else if (ch==='b2b') { b2b=combined.map(v=>v); b2c=new Array(12).fill(0); }
+  else { // inherit proportions from reference (zeroed for pre-release months)
+    b2c=refD.b2c.map((_,i) => i < relMo-1 ? 0 : Math.round(combined[i]*(refD.b2c[i]/(refD.combined[i]||1))));
+    b2b=combined.map((v,i) => v - b2c[i]);
+  }
+  const relLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][relMo-1];
+  const entry = { name, b2c, b2b, combined, isNew:true, refSKU:ref, refPct:(pct*100).toFixed(0), relMonth:relMo, relLabel };
+  S.fc[code] = entry;
+  S.newSKUs.push({ sku:code, ...entry });
+  document.getElementById('ns-code').value='';
+  document.getElementById('ns-name').value='';
+  updateFcStats(); renderNSList(); persist();
+  const relMsg = relMo > 1 ? ` · Releases in ${relLabel}` : '';
+  alert(`✅ "${name}" (${code}) added to forecast!${relMsg}`);
+}
+
+function renderNSList() {
+  const el = document.getElementById('ns-list');
+  const news = Object.keys(S.fc).filter(k=>S.fc[k].isNew);
+  if (!news.length) { el.innerHTML=`<div class="empty" style="padding:16px;"><div class="ei" style="font-size:30px;">📦</div><p>No new SKUs yet</p></div>`; return; }
+  el.innerHTML = news.map(sku=>{
+    const d=S.fc[sku]; const tot=sum(d.combined);
+    return `<div class="ns-item">
+      <div>
+        <div class="ns-item-name">${sku} <span class="badge badge-yellow">NEW</span></div>
+        <div class="ns-item-sub">${d.name} · ${fmt(tot)} units · ${d.refPct}% of ${d.refSKU}${d.relMonth && d.relMonth > 1 ? ` · <span style="color:#e67e22;font-weight:700;">📅 From ${d.relLabel}</span>` : ''}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeNS('${sku}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removeNS(sku) {
+  if (!confirm(`Remove ${sku} from forecast?`)) return;
+  delete S.fc[sku]; S.newSKUs=S.newSKUs.filter(s=>s.sku!==sku);
+  renderNSList(); updateFcStats(); persist();
+}
+
+// ══════════════════════════════════════════════════════
+//  TRACKER
+// ══════════════════════════════════════════════════════
+function updateTrYearSel(yr) {
+  const sel = document.getElementById('tr-year'); if(!sel) return;
+  if (!sel.querySelector(`option[value="${yr}"]`)) {
+    const o=document.createElement('option'); o.value=yr; o.textContent=yr; sel.appendChild(o);
+  }
+  sel.value=yr;
+}
+
+// ══════════════════════════════════════════════════════
+//  TRACKER TABLE FILTER
+// ══════════════════════════════════════════════════════
+let _trkrActiveFilter = 'all';
+
+function setTrkrFilter(el, filter) {
+  _trkrActiveFilter = filter;
+  // Update button styles
+  document.querySelectorAll('[data-filter-btn]').forEach(b => {
+    const active = b.dataset.filterBtn === filter;
+    b.style.background   = active ? '#2c3e50' : '#f0f2f7';
+    b.style.color        = active ? '#fff'    : '#5a6a7a';
+    b.style.borderColor  = active ? '#2c3e50' : '#dde3ed';
+  });
+  filterTrackerTable();
+}
+
+function filterTrackerTable() {
+  const search = (document.getElementById('trkr-search')?.value || '').toLowerCase().trim();
+  const filter = _trkrActiveFilter;
+  const rows   = document.querySelectorAll('#tr-table tbody tr:not(.tbl-total)');
+  let shown = 0, total = 0;
+
+  rows.forEach(row => {
+    const sku    = row.dataset.sku    || '';
+    const name   = row.dataset.name   || '';
+    const status = row.dataset.status || '';
+    const matchSearch = !search || sku.includes(search) || name.includes(search);
+    const matchFilter = filter === 'all' || status === filter;
+    const vis = matchSearch && matchFilter;
+    row.style.display = vis ? '' : 'none';
+    if (vis) shown++;
+    total++;
+  });
+
+  // Count badge
+  const countEl = document.getElementById('trkr-filter-count');
+  if (countEl) {
+    countEl.textContent = total === 0 ? '' :
+      shown === total ? `${total} SKUs` : `Showing ${shown} of ${total} SKUs`;
+  }
+
+  // Keep total row visible only when something is shown
+  const totalRow = document.querySelector('#tr-table tbody tr.tbl-total');
+  if (totalRow) totalRow.style.display = shown > 0 ? '' : 'none';
+
+  // Show Revise button only when a real filter is active and rows are visible
+  const revBtn = document.getElementById('btn-revise-listed');
+  if (revBtn) {
+    const hasFilter = _trkrActiveFilter !== 'all' || search.length > 0;
+    revBtn.style.display = (hasFilter && shown > 0) ? 'inline-flex' : 'none';
+    revBtn.textContent = `📋 Revise Forecast (${shown} SKU${shown!==1?'s':''})`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  REVISE FORECAST MODAL
+// ══════════════════════════════════════════════════════
+let _reviseSKUs = [];   // original-case SKU keys currently in the modal
+
+function openReviseModal() {
+  // Collect original-case SKU keys from visible (filtered) rows
+  const rows = document.querySelectorAll('#tr-table tbody tr:not(.tbl-total)');
+  _reviseSKUs = [];
+  rows.forEach(row => {
+    if (row.style.display !== 'none') {
+      const orig = row.dataset.skuOrig;
+      if (orig && S.fc[orig]) _reviseSKUs.push(orig);
+    }
+  });
+  if (!_reviseSKUs.length) return;
+
+  // Subtitle
+  const sub = document.getElementById('revise-modal-subtitle');
+  if (sub) sub.textContent = `${_reviseSKUs.length} SKU${_reviseSKUs.length!==1?'s':''} from current filter · Adjusts monthly values proportionally`;
+
+  // Reset controls
+  document.getElementById('revise-adj').value  = '-20';
+  document.getElementById('revise-note').value = '';
+
+  // Render preview
+  updateRevisePreview();
+
+  // Show overlay
+  const ov = document.getElementById('revise-modal-overlay');
+  ov.style.display = 'flex';
+  // Focus the adjustment input
+  setTimeout(() => document.getElementById('revise-adj')?.focus(), 80);
+}
+
+function closeReviseModal() {
+  document.getElementById('revise-modal-overlay').style.display = 'none';
+}
+
+function updateRevisePreview() {
+  const adjPct = parseFloat(document.getElementById('revise-adj')?.value) || 0;
+  const mult   = 1 + adjPct / 100;
+  const tbody  = document.getElementById('revise-preview-body');
+  if (!tbody || !_reviseSKUs.length) return;
+
+  const isPos = adjPct >= 0;
+  const adjColor   = adjPct === 0 ? '#8795a1' : isPos ? '#27ae60' : '#e74c3c';
+  const adjArrow   = adjPct === 0 ? '' : isPos ? '▲ ' : '▼ ';
+
+  // Hint text
+  const hint = document.getElementById('revise-adj-hint');
+  if (hint) {
+    if (adjPct === 0)      hint.textContent = 'No change.';
+    else if (adjPct > 0)   hint.textContent = `Increase forecast by ${adjPct.toFixed(1)}% for each listed SKU.`;
+    else                   hint.textContent = `Reduce forecast by ${Math.abs(adjPct).toFixed(1)}% for each listed SKU.`;
+    hint.style.color = adjColor;
+  }
+
+  let totalCurrent = 0, totalNew = 0;
+
+  tbody.innerHTML = _reviseSKUs.map((sku, i) => {
+    const d       = S.fc[sku];
+    const annual  = d.combined.reduce((s, v) => s + v, 0);
+    const newAnn  = Math.round(annual * mult);
+    const diff    = newAnn - annual;
+    const diffPct = annual > 0 ? ((diff / annual) * 100).toFixed(1) : '—';
+    totalCurrent += annual;
+    totalNew     += newAnn;
+    const bg = i % 2 ? '#f8f9fc' : '#fff';
+    const name = d.name.length > 36 ? d.name.slice(0, 36) + '…' : d.name;
+    return `<tr style="background:${bg};border-bottom:1px solid #edf0f5;">
+      <td style="padding:8px 10px;font-weight:700;color:#2c3e50;">${sku}</td>
+      <td style="padding:8px 10px;color:#555;" title="${d.name}">${name}</td>
+      <td style="padding:8px 10px;text-align:right;color:#2c3e50;">${fmt(annual)}</td>
+      <td style="padding:8px 10px;text-align:right;font-weight:700;color:${adjColor};">${fmt(newAnn)}</td>
+      <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:11.5px;color:${adjColor};">${diff!==0?adjArrow:''}${diff!==0?Math.abs(diff)+' ('+Math.abs(diffPct)+'%)':'—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Totals row
+  const totalDiff    = totalNew - totalCurrent;
+  const totalDiffPct = totalCurrent > 0 ? ((totalDiff / totalCurrent) * 100).toFixed(1) : '—';
+  const tColor       = totalDiff === 0 ? '#8795a1' : totalDiff > 0 ? '#27ae60' : '#e74c3c';
+  document.getElementById('revise-total-current').textContent = fmt(totalCurrent);
+  document.getElementById('revise-total-new').innerHTML       = `<span style="color:${tColor};">${fmt(totalNew)}</span>`;
+  document.getElementById('revise-total-change').innerHTML    = totalDiff !== 0
+    ? `<span style="color:${tColor};">${totalDiff>0?'▲ ':'▼ '}${fmt(Math.abs(totalDiff))} (${Math.abs(totalDiffPct)}%)</span>` : '—';
+}
+
+function confirmRevise() {
+  const adjPct = parseFloat(document.getElementById('revise-adj')?.value);
+  if (isNaN(adjPct) || adjPct === 0) { alert('Please enter a non-zero adjustment %.'); return; }
+  const note = document.getElementById('revise-note')?.value?.trim() ||
+    `Selective revision: ${adjPct > 0 ? '+' : ''}${adjPct}% on ${_reviseSKUs.length} SKU${_reviseSKUs.length!==1?'s':''}`;
+  const mult = 1 + adjPct / 100;
+
+  // Apply adjustment to each listed SKU
+  _reviseSKUs.forEach(sku => {
+    const d = S.fc[sku];
+    if (!d) return;
+    d.b2c      = d.b2c.map(v => Math.max(0, Math.round(v * mult)));
+    d.b2b      = d.b2b.map(v => Math.max(0, Math.round(v * mult)));
+    d.combined = d.b2c.map((v, i) => v + d.b2b[i]);
+  });
+
+  // Save revision entry
+  const now = new Date().toLocaleString('es-ES', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  const newTotal = Object.values(S.fc).reduce((s, d) => s + d.combined.reduce((t, v) => t + v, 0), 0);
+  S.revisions.push({
+    date: now,
+    fcYear: S.fcYear,
+    fcBase: S.fcBase,
+    growth: S.fcGrowth,
+    note,
+    skusAffected: _reviseSKUs.length,
+    adjPct,
+    total: newTotal,
+    fc: JSON.parse(JSON.stringify(S.fc))
+  });
+
+  // Stamp fcSavedParams so the Forecast tab bar stays in sync
+  S.fcSavedParams = Object.assign({}, S.fcSavedParams || { year: S.fcYear, base: S.fcBase, growth: S.fcGrowth }, {
+    isRevision:    true,
+    adjPct,
+    skusAffected:  _reviseSKUs.length,
+    revNote:       note,
+    savedAt:       now,
+  });
+
+  persist();
+  closeReviseModal();
+
+  // Re-render forecast tab bar + table, and tracker
+  updateFcSavedBar(false);
+  updateFcStats();
+  renderForecastTable();
+  renderTracker();
+
+  // Toast confirmation
+  showToast(`✅ Forecast revised for ${_reviseSKUs.length} SKU${_reviseSKUs.length!==1?'s':''}. Revision saved.`, '#27ae60');
+}
+
+function showToast(msg, color) {
+  let t = document.getElementById('revise-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'revise-toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:11px 22px;border-radius:10px;color:#fff;font-size:13px;font-weight:700;z-index:2000;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .4s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.style.background = color || '#2c3e50';
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._to);
+  t._to = setTimeout(() => { t.style.opacity = '0'; }, 3200);
+}
+
+// Close modal on overlay click
+document.addEventListener('DOMContentLoaded', () => {
+  const ov = document.getElementById('revise-modal-overlay');
+  if (ov) ov.addEventListener('click', e => { if (e.target === ov) closeReviseModal(); });
+});
+
+function renderTracker() {
+  const yr  = parseInt(document.getElementById('tr-year')?.value)||S.fcYear;
+  const upTo= parseInt(document.getElementById('tr-month')?.value)??new Date().getMonth();
+  const thr = parseFloat(document.getElementById('tr-threshold')?.value)||20;
+  const tbl = document.getElementById('tr-table');
+  const emp = document.getElementById('tr-empty');
+  const data= S.fc;
+
+  if (!Object.keys(data).length) { if(tbl)tbl.innerHTML=''; if(emp)emp.style.display='block'; return; }
+  if(emp)emp.style.display='none';
+
+  if (!S.actuals[yr]) S.actuals[yr]={};
+
+  let ytdF=0, ytdA=0, alertCnt=0;
+
+  // Header
+  let h = `<table><thead>
+    <tr>
+      <th class="left" rowspan="2">SKU</th>
+      <th class="left" rowspan="2">Product</th>
+      ${MM.slice(0,upTo+1).map(m=>`<th colspan="2">${m}</th>`).join('')}
+      ${MM.slice(upTo+1).map(m=>`<th>${m}</th>`).join('')}
+      <th colspan="2">YTD</th>
+      <th rowspan="2">Status</th>
+    </tr>
+    <tr>
+      ${MM.slice(0,upTo+1).map(()=>`<th style="background:#1a3a6a;font-size:10px;">Fcst</th><th style="background:#155724;font-size:10px;">Act</th>`).join('')}
+      ${MM.slice(upTo+1).map(()=>`<th style="background:#1a2e4a;font-size:10px;color:rgba(255,255,255,.5);">Fcst</th>`).join('')}
+      <th style="background:#1a3a6a;font-size:10px;">Fcst</th>
+      <th style="background:#155724;font-size:10px;">Act</th>
+    </tr>
+  </thead><tbody>`;
+
+  Object.keys(data).sort().forEach(sku=>{
+    const d=data[sku];
+    if (!S.actuals[yr][sku]) S.actuals[yr][sku]=new Array(12).fill(null);
+    const act=S.actuals[yr][sku];
+    let skuF=0,skuA=0;
+    let cells='';
+    for (let m=0;m<=upTo;m++){
+      const f=d.combined[m]; const a=act[m];
+      skuF+=f; if(a!==null) skuA+=(a||0);
+      cells+=`<td style="color:#1a3a6a;">${f}</td>
+        <td class="editable"><input type="number" class="cell-input actual" value="${a!==null?a:''}" placeholder="—"
+          onchange="setActual(${yr},'${sku}',${m},this.value)"></td>`;
+    }
+    for (let m=upTo+1;m<12;m++){
+      cells+=`<td style="color:#aab4c0;">${d.combined[m]}</td>`;
+    }
+    ytdF+=skuF; ytdA+=skuA;
+
+    // Status badge + filter key
+    let badge='', statusKey='nodata';
+    const hasData = act.some(a=>a!==null);
+    if (hasData && skuF>0) {
+      const varPct=((skuA-skuF)/skuF)*100;
+      if (Math.abs(varPct)>thr){
+        alertCnt++;
+        statusKey = varPct>0 ? 'above' : 'below';
+        badge=`<span class="badge ${varPct>0?'badge-green':'badge-red'}">${varPct>0?'▲':'▼'} ${Math.abs(varPct).toFixed(1)}%</span>`;
+      } else {
+        statusKey = 'ontrack';
+        badge=`<span class="badge badge-blue">✓ On track</span>`;
+      }
+    } else {
+      badge=`<span class="badge badge-grey">No data</span>`;
+    }
+
+    const rc=d.isNew?'tbl-new':'';
+    const safeName = d.name.replace(/"/g,'&quot;').toLowerCase();
+    h+=`<tr class="${rc}" data-sku="${sku.toLowerCase()}" data-sku-orig="${sku}" data-name="${safeName}" data-status="${statusKey}">
+      <td class="left">${sku}${d.isNew?` <span class="badge badge-yellow">NEW</span>`:''}</td>
+      <td class="left">${d.name}</td>
+      ${cells}
+      <td><strong>${fmt(skuF)}</strong></td>
+      <td style="color:#27ae60;font-weight:700;">${skuA||'—'}</td>
+      <td>${badge}</td>
+    </tr>`;
+  });
+
+  // Total row
+  const tVarPct = ytdF>0?((ytdA-ytdF)/ytdF*100):0;
+  h+=`<tr class="tbl-total">
+    <td class="left" colspan="2">TOTAL</td>
+    ${Array(upTo+1).fill(0).map(()=>'<td></td><td></td>').join('')}
+    ${Array(11-upTo).fill(0).map(()=>'<td></td>').join('')}
+    <td><strong>${fmt(ytdF)}</strong></td>
+    <td style="color:#27ae60;font-weight:700;"><strong>${fmt(ytdA)}</strong></td>
+    <td>${ytdF?`<span class="badge ${tVarPct>=0?'badge-green':'badge-red'}">${tVarPct>=0?'▲':'▼'} ${Math.abs(tVarPct).toFixed(1)}%</span>`:''}</td>
+  </tr>`;
+
+  h+='</tbody></table>';
+  tbl.innerHTML=h;
+  // Show filter bar and apply any active filter/search
+  const fbar = document.getElementById('trkr-filter-bar');
+  if (fbar) fbar.style.display = 'flex';
+  filterTrackerTable();
+
+  // Stats
+  document.getElementById('ts-fcst').textContent=fmt(ytdF);
+  document.getElementById('ts-actuals').textContent=fmt(ytdA);
+  const varAmt=ytdA-ytdF;
+  const varEl=document.getElementById('ts-var');
+  varEl.textContent=(varAmt>=0?'+':'')+fmt(varAmt);
+  varEl.className='stat-value '+(varAmt>=0?'var-up':'var-down');
+  document.getElementById('ts-varPct').textContent=ytdF?`${tVarPct>=0?'+':''}${tVarPct.toFixed(1)}% vs forecast`:'vs forecast';
+  document.getElementById('ts-alerts').textContent=alertCnt;
+  document.getElementById('ts-alertLbl').textContent=`>${thr}% deviation`;
+
+  renderRevList();
+  renderAnalyst();
+  persist();
+}
+
+function setActual(yr, sku, mi, val) {
+  if (!S.actuals[yr]) S.actuals[yr]={};
+  if (!S.actuals[yr][sku]) S.actuals[yr][sku]=new Array(12).fill(null);
+  S.actuals[yr][sku][mi] = val===''?null:(parseInt(val)||0);
+  renderTracker(); persist();
+}
+
+// "Recalculate Remaining" — adjusts future months by the YTD trend ratio
+function recalcRemainingForecast() {
+  const yr  = parseInt(document.getElementById('tr-year').value)||S.fcYear;
+  const upTo= parseInt(document.getElementById('tr-month').value)??new Date().getMonth();
+  if (!Object.keys(S.fc).length) { alert('No forecast to recalculate.'); return; }
+  if (!confirm(`Adjust remaining months (${MM[upTo+1]||'none'} onwards) based on YTD actuals trend?`)) return;
+
+  Object.keys(S.fc).forEach(sku=>{
+    const d=S.fc[sku]; const act=S.actuals[yr]?.[sku];
+    if (!act) return;
+    const skuF=sum(d.combined.slice(0,upTo+1));
+    const skuA=sum(act.slice(0,upTo+1).map(v=>v||0));
+    if (skuF>0 && skuA>0) {
+      const ratio=skuA/skuF;
+      for (let m=upTo+1;m<12;m++){
+        d.combined[m]=Math.round(d.combined[m]*ratio);
+        d.b2c[m]=Math.round(d.b2c[m]*ratio);
+        d.b2b[m]=Math.round(d.b2b[m]*ratio);
+      }
+    }
+  });
+  updateFcStats(); renderForecastTable(); renderTracker();
+  alert('✅ Remaining months adjusted based on YTD actuals trend!');
+}
+
+// ══════════════════════════════════════════════════════
+//  TRACKER CSV EXPORT
+// ══════════════════════════════════════════════════════
+function exportTrackerCSV() {
+  const yr  = parseInt(document.getElementById('tr-year')?.value)||S.fcYear;
+  const upTo= parseInt(document.getElementById('tr-month')?.value)??11;
+  let csv=`OcCre Forecast vs Actuals — ${yr}\n`;
+  csv+='SKU,Product Name,'+MM.map(m=>`${m} Forecast,${m} Actual`).join(',')+',YTD Forecast,YTD Actual,YTD Var%\n';
+  Object.keys(S.fc).sort().forEach(sku=>{
+    const d=S.fc[sku]; const act=S.actuals[yr]?.[sku]||new Array(12).fill(null);
+    let yF=0,yA=0;
+    const ms=MM.map((_,i)=>{
+      const f=d.combined[i]; const a=act[i]!==null?act[i]:'';
+      if(i<=upTo){yF+=f;if(act[i]!==null)yA+=act[i]||0;}
+      return `${f},${a}`;
+    });
+    const vp=yF?((yA-yF)/yF*100).toFixed(1)+'%':'';
+    csv+=`"${sku}","${d.name}",${ms.join(',')},${yF},${yA},${vp}\n`;
+  });
+  dlCSV(csv,`OcCre_Tracker_${yr}.csv`);
+}
+
+// (actuals upload moved to Data Import tab — Section 2)
+
+// ══════════════════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════════════════
+function sum(arr){ return arr.reduce((a,b)=>a+(+b||0),0); }
+function fmt(n){ return (+n||0).toLocaleString('es-ES'); }
+function dlCSV(content, filename){
+  const b=new Blob([content],{type:'text/csv;charset=utf-8;'});
+  const u=URL.createObjectURL(b); const a=document.createElement('a');
+  a.href=u; a.download=filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(u);
+}
+
+// ══════════════════════════════════════════════════════
+//  ANALYST ENGINE
+// ══════════════════════════════════════════════════════
+function renderAnalyst() {
+  const el   = document.getElementById('analyst-body');
+  if (!el) return;
+
+  const yr   = parseInt(document.getElementById('tr-year')?.value)   || S.fcYear;
+  const upTo = parseInt(document.getElementById('tr-month')?.value)  ?? new Date().getMonth();
+  const thr  = parseFloat(document.getElementById('tr-threshold')?.value) || 20;
+  const fc   = S.fc;
+  const acts = S.actuals[yr] || {};
+  const months = upTo + 1;
+
+  if (!Object.keys(fc).length) {
+    el.innerHTML = '<div class="empty" style="padding:20px;"><div class="ei">🧠</div><p>Generate a forecast first to activate the analyst.</p></div>';
+    return;
+  }
+
+  // ── Per-SKU metrics ──
+  const skuStats = [];
+  Object.keys(fc).forEach(sku => {
+    const d   = fc[sku];
+    const act = acts[sku] || new Array(12).fill(null);
+    let ytdF = 0, ytdA = 0, hasData = false;
+    for (let m = 0; m <= upTo; m++) {
+      ytdF += d.combined[m];
+      if (act[m] !== null) { ytdA += (act[m] || 0); hasData = true; }
+    }
+    if (!hasData || ytdF === 0) return;
+    const annualF     = sum(d.combined);
+    const avgMonthly  = months > 0 ? ytdA / months : 0;
+    const projected   = ytdA + sum(d.combined.slice(upTo + 1));   // YTD actual + remaining forecast
+    const runRateProj = ytdA + (avgMonthly * (12 - months));       // full run-rate projection
+    const varPct      = ((ytdA - ytdF) / ytdF) * 100;
+    const projVsF     = annualF > 0 ? ((runRateProj - annualF) / annualF) * 100 : null;
+    skuStats.push({ sku, name: d.name, ytdF, ytdA, annualF, avgMonthly, runRateProj, varPct, projVsF, months });
+  });
+
+  // ── Month-by-month aggregate ──
+  const monthStats = [];
+  for (let m = 0; m <= upTo; m++) {
+    let mF = 0, mA = 0;
+    Object.keys(fc).forEach(sku => {
+      mF += fc[sku].combined[m];
+      const a = acts[sku]?.[m];
+      if (a !== null && a !== undefined) mA += (a || 0);
+    });
+    if (mF > 0) monthStats.push({ m, mF, mA, varPct: ((mA - mF) / mF) * 100 });
+  }
+
+  if (!skuStats.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px;"><div class="ei">🧠</div><p>No actuals entered yet — upload data or enter values in the tracker table above.</p></div>';
+    return;
+  }
+
+  // ── Aggregates ──
+  const totalYtdF   = skuStats.reduce((s,x) => s + x.ytdF, 0);
+  const totalYtdA   = skuStats.reduce((s,x) => s + x.ytdA, 0);
+  const totalAnnF   = Object.values(fc).reduce((s,d) => s + sum(d.combined), 0);
+  const totalAvgMo  = totalYtdA / months;
+  const totalRunProj= totalYtdA + (totalAvgMo * (12 - months));
+  const overallVar  = totalYtdF > 0 ? ((totalYtdA - totalYtdF) / totalYtdF) * 100 : 0;
+  const paceVsAnnF  = totalAnnF  > 0 ? ((totalRunProj - totalAnnF) / totalAnnF) * 100 : 0;
+
+  const bestMonth  = monthStats.length ? [...monthStats].sort((a,b) => b.varPct - a.varPct)[0]  : null;
+  const worstMonth = monthStats.length ? [...monthStats].sort((a,b) => a.varPct - b.varPct)[0] : null;
+  const bestMoConsec = monthStats.length >= 2 ? monthStats[monthStats.length-1].varPct > 0 : false;
+
+  // ── Sorted lists ──
+  const highlights   = [...skuStats].filter(x => x.varPct > 0) .sort((a,b) => b.varPct - a.varPct).slice(0,5);
+  const lowlights    = [...skuStats].filter(x => x.varPct < 0) .sort((a,b) => a.varPct - b.varPct).slice(0,5);
+  const hotSKUs      = [...skuStats].filter(x => x.projVsF >  thr).sort((a,b) => b.projVsF - a.projVsF);
+  const coldSKUs     = [...skuStats].filter(x => x.projVsF < -thr).sort((a,b) => a.projVsF - b.projVsF);
+  const criticalHot  = hotSKUs.filter(x  => x.projVsF >  40);
+  const criticalCold = coldSKUs.filter(x => x.projVsF < -40);
+
+  // ── Narrative ──
+  const dir = overallVar >= 0 ? 'ahead of' : 'behind';
+  const dirEmoji = overallVar >= 0 ? '📈' : '📉';
+  const paceDir  = paceVsAnnF >= 0 ? 'exceed' : 'fall short of';
+  const paceAbs  = Math.abs(paceVsAnnF).toFixed(1);
+  const narrative = [
+    `${dirEmoji} Through <strong>${MMF[upTo]}</strong>, total sales are <strong>${Math.abs(overallVar).toFixed(1)}% ${dir} forecast</strong> (${fmt(totalYtdA)} vs. ${fmt(totalYtdF)} units planned).`,
+    paceVsAnnF !== 0 ? `At the current run rate, the full year is on track to <strong>${paceDir} the annual forecast by ${paceAbs}%</strong> — projected ${fmt(Math.round(totalRunProj))} vs. ${fmt(totalAnnF)} target.` : '',
+    bestMonth  ? `Best month so far: <strong>${MMF[bestMonth.m]}</strong> (+${bestMonth.varPct.toFixed(1)}% vs. forecast).` : '',
+    criticalHot.length  ? `🚨 <strong>${criticalHot.length} SKU${criticalHot.length>1?'s':''}</strong> running >40% above pace — review purchase orders to avoid stockouts.` : '',
+    criticalCold.length ? `⚠️ <strong>${criticalCold.length} SKU${criticalCold.length>1?'s':''}</strong> running >40% below pace — risk of overstock, consider deferring orders.` : '',
+  ].filter(Boolean).join(' ');
+
+  // ── Pace bar ──
+  const paceBarPct  = Math.min(100, Math.max(0, 50 + paceVsAnnF / 2));
+  const paceBarCol  = paceVsAnnF > 10 ? '#27ae60' : paceVsAnnF < -10 ? '#e74c3c' : '#f0c060';
+  const paceLabel   = paceVsAnnF >= 0 ? `+${paceVsAnnF.toFixed(1)}% above target` : `${paceVsAnnF.toFixed(1)}% below target`;
+
+  // ── Purchase signals (3 action categories, collapsible, with legend) ──
+  function purchaseWarnings() {
+    const SHOW_INIT = 3;                                                            // rows visible before collapse
+    const urgent      = criticalHot.slice(0, 20);                                  // >40% above pace
+    const careful     = hotSKUs.filter(x => x.projVsF > 20 && x.projVsF <= 40).slice(0, 20); // 20–40% above
+    const reformulate = criticalCold.filter(x => x.projVsF < -20).slice(0, 20);   // >20% below pace
+    let _bid = 0;
+
+    function skuRow(x, isHot) {
+      const pct  = isHot ? `+${x.projVsF.toFixed(0)}%` : `${x.projVsF.toFixed(0)}%`;
+      const proj = fmt(Math.round(x.runRateProj));
+      const plan = fmt(x.annualF);
+      return `<div style="padding:8px 0;border-bottom:1px solid rgba(0,0,0,.06);">
+        <div style="font-weight:700;font-size:12.5px;color:#2c3e50;">${x.sku}</div>
+        <div style="font-size:11.5px;color:#555;margin-top:1px;">${x.name.length>34?x.name.slice(0,34)+'…':x.name}</div>
+        <div style="margin-top:3px;font-size:11px;color:#888;">Proj <strong>${proj}</strong> vs plan <strong>${plan}</strong> <span style="font-weight:700;">(${pct})</span></div>
+      </div>`;
+    }
+
+    function box(icon, titleKey, descKey, color, bg, border, items, isHot, emptyKey) {
+      const id      = 'pw-' + (++_bid);
+      const title   = t(titleKey);
+      const desc    = t(descKey);
+      const moreN   = Math.max(0, items.length - SHOW_INIT);
+      const visible = items.slice(0, SHOW_INIT).map(x => skuRow(x, isHot)).join('');
+      const hidden  = items.slice(SHOW_INIT).map(x => skuRow(x, isHot)).join('');
+      const emptyHtml = `<div style="font-size:12px;color:#bbb;padding:6px 0;">${t(emptyKey)}</div>`;
+
+      const toggleBtn = moreN > 0 ? `
+        <button id="${id}-btn" onclick="
+          var h=document.getElementById('${id}-h');
+          var open=h.style.display==='none';
+          h.style.display=open?'block':'none';
+          document.getElementById('${id}-btn').textContent=open?'▲ Show less':'▼ Show ${moreN} more';
+        " style="margin-top:7px;width:100%;padding:5px 0;border-radius:7px;border:1.5px solid ${border};background:transparent;color:${color};font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">
+          ▼ Show ${moreN} more
+        </button>` : '';
+
+      const bodyHtml = items.length
+        ? `<div>${visible}</div>
+           <div id="${id}-h" style="display:none;">${hidden}</div>
+           ${toggleBtn}`
+        : emptyHtml;
+
+      return `<div style="flex:1;min-width:210px;background:${bg};border-radius:12px;padding:14px 16px;border:1.5px solid ${border};">
+        <div style="font-size:13px;font-weight:800;color:${color};margin-bottom:3px;letter-spacing:.3px;">${icon} ${title}</div>
+        <div style="font-size:11px;color:${color};opacity:.75;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid ${border};line-height:1.5;">${desc}</div>
+        ${bodyHtml}
+      </div>`;
+    }
+
+    const b1 = box('🚨', 'purchase_urgent',      'purchase_urgent_desc',  '#c0392b', '#fff5f5', '#f5c6cb', urgent,      true,  'purchase_no_urgent');
+    const b2 = box('⚠️', 'purchase_careful',     'purchase_careful_desc', '#d68910', '#fffbf0', '#f9e4b7', careful,     true,  'purchase_no_careful');
+    const b3 = box('📉', 'purchase_reformulate',  'purchase_reform_desc',  '#1a5276', '#eaf4fd', '#aed6f1', reformulate, false, 'purchase_no_reform');
+
+    const anySignal = urgent.length || careful.length || reformulate.length;
+
+    // Legend strip
+    const legend = `<div style="font-size:11.5px;color:#6d7f8b;margin-bottom:12px;padding:9px 13px;background:#f4f6f9;border-radius:8px;border-left:3px solid #c0c8d8;line-height:1.6;">
+      <strong style="color:#3a4a5c;">📖 How to read: </strong>${t('purchase_legend')}
+      <span style="margin-left:6px;">
+        <strong style="color:#c0392b;">🚨 Urgent</strong> = act now &nbsp;·&nbsp;
+        <strong style="color:#d68910;">⚠️ Careful</strong> = watch &nbsp;·&nbsp;
+        <strong style="color:#1a5276;">📉 Reformulate</strong> = demand review
+      </span>
+    </div>`;
+
+    if (!anySignal) return legend + `<div class="ac-empty">${t('purchase_all_ok')}</div>`;
+    return legend + `<div style="display:flex;gap:12px;flex-wrap:wrap;">${b1}${b2}${b3}</div>`;
+  }
+
+  function insightRows(arr, isUp) {
+    if (!arr.length) return `<div class="ac-empty">No data.</div>`;
+    return arr.map(x => `
+      <div class="insight-row">
+        <div>
+          <div class="insight-sku">${x.sku}</div>
+          <div class="insight-name">${x.name}</div>
+        </div>
+        <div class="insight-badge ${isUp?'ins-up':'ins-down'}">${isUp?'+':''}${x.varPct.toFixed(1)}%</div>
+      </div>`).join('');
+  }
+
+  // ── Monthly trend mini-table ──
+  function monthlyTrend() {
+    if (!monthStats.length) return '<div class="ac-empty">No monthly data.</div>';
+    return `<table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 6px;color:#8795a1;font-weight:700;font-size:11px;">Month</th>
+        <th style="text-align:right;padding:4px 6px;color:#8795a1;font-weight:700;font-size:11px;">Forecast</th>
+        <th style="text-align:right;padding:4px 6px;color:#8795a1;font-weight:700;font-size:11px;">Actual</th>
+        <th style="text-align:right;padding:4px 6px;color:#8795a1;font-weight:700;font-size:11px;">Var %</th>
+      </tr></thead><tbody>
+      ${monthStats.map(ms => {
+        const col = ms.varPct >= 0 ? '#27ae60' : '#e74c3c';
+        const bar = Math.min(100, Math.abs(ms.varPct));
+        return `<tr>
+          <td style="padding:5px 6px;font-weight:700;color:#1a2e4a;">${MMF[ms.m]}</td>
+          <td style="padding:5px 6px;text-align:right;color:#8795a1;">${fmt(ms.mF)}</td>
+          <td style="padding:5px 6px;text-align:right;font-weight:700;">${fmt(ms.mA)}</td>
+          <td style="padding:5px 6px;text-align:right;font-weight:800;color:${col};">${ms.varPct>=0?'+':''}${ms.varPct.toFixed(1)}%</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>`;
+  }
+
+  // ── Render ──
+  el.innerHTML = `
+    <!-- Narrative -->
+    <div class="analyst-narrative">
+      <div class="nar-label">🧠 Executive Summary</div>
+      <div class="nar-text">${narrative}</div>
+    </div>
+
+    <!-- Pace KPI -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;">
+      <div class="analyst-card" style="border-top:3px solid ${paceBarCol};">
+        <div class="ac-title">📐 Annual Run-Rate Pace</div>
+        <div style="font-size:22px;font-weight:900;color:${paceBarCol};">${paceVsAnnF>=0?'+':''}${paceVsAnnF.toFixed(1)}%</div>
+        <div style="font-size:11.5px;color:#8795a1;margin:3px 0 8px;">${fmt(Math.round(totalRunProj))} projected vs. ${fmt(totalAnnF)} target</div>
+        <div class="pace-bar-wrap"><div class="pace-bar" style="width:${paceBarPct}%;background:${paceBarCol};"></div></div>
+        <div style="font-size:11px;color:#8795a1;margin-top:4px;">${paceLabel}</div>
+      </div>
+      <div class="analyst-card" style="border-top:3px solid ${overallVar>=0?'#27ae60':'#e74c3c'};">
+        <div class="ac-title">📊 YTD vs. Forecast</div>
+        <div style="font-size:22px;font-weight:900;color:${overallVar>=0?'#27ae60':'#e74c3c'};">${overallVar>=0?'+':''}${overallVar.toFixed(1)}%</div>
+        <div style="font-size:11.5px;color:#8795a1;margin:3px 0;">${fmt(totalYtdA)} actual vs. ${fmt(totalYtdF)} planned</div>
+        <div style="font-size:11.5px;color:#8795a1;">${months} month${months!==1?'s':''} tracked · ${skuStats.length} SKUs with data</div>
+      </div>
+      <div class="analyst-card" style="border-top:3px solid #3498db;">
+        <div class="ac-title">📅 Monthly Avg. Run Rate</div>
+        <div style="font-size:22px;font-weight:900;color:#1a2e4a;">${fmt(Math.round(totalAvgMo))}</div>
+        <div style="font-size:11.5px;color:#8795a1;margin:3px 0;">units / month (actual)</div>
+        <div style="font-size:11.5px;color:#8795a1;">Best: <strong>${bestMonth?MMF[bestMonth.m]:'—'}</strong>${bestMonth?' ('+bestMonth.varPct.toFixed(0)+'%)':''} · Worst: <strong>${worstMonth?MMF[worstMonth.m]:'—'}</strong>${worstMonth?' ('+worstMonth.varPct.toFixed(0)+'%)':''}</div>
+      </div>
+    </div>
+
+    <!-- Three columns: highlights / lowlights / monthly trend -->
+    <div class="analyst-grid">
+      <div class="analyst-card">
+        <div class="ac-title">✨ Highlights — Beating Forecast</div>
+        ${insightRows(highlights, true)}
+      </div>
+      <div class="analyst-card">
+        <div class="ac-title">⚠️ Lowlights — Below Forecast</div>
+        ${insightRows(lowlights, false)}
+      </div>
+      <div class="analyst-card">
+        <div class="ac-title">📅 Month-by-Month Performance</div>
+        ${monthlyTrend()}
+      </div>
+    </div>
+
+    <!-- Purchase signals -->
+    <div class="analyst-card" style="margin-top:0;">
+      <div class="ac-title" style="margin-bottom:12px;">🛒 <span data-i18n="purchase_title">Purchase Signals — Action Required</span></div>
+      ${purchaseWarnings()}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  STOCK MANAGEMENT
+// ══════════════════════════════════════════════════════
+let stockStaging = null;
+
+function onStockSettingChange() {
+  S.stockSettings.target  = parseInt(document.getElementById('stock-target').value)   || 12;
+  S.stockSettings.lead    = parseInt(document.getElementById('stock-lead').value)     || 8;
+  S.stockSettings.safety  = parseInt(document.getElementById('stock-safety').value)   || 2;
+  S.stockSettings.rateSrc = document.getElementById('stock-rate-src').value           || 'actuals';
+  persist();
+  renderStockTable();
+}
+
+function onStockFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const res  = document.getElementById('stock-import-result');
+  const acts = document.getElementById('stock-import-actions');
+  res.innerHTML = '<div style="color:#8795a1;font-size:13px;">Processing…</div>';
+  acts.style.display = 'none';
+  stockStaging = null;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') {
+    parsePDFStock(file);
+  } else if (ext === 'csv') {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete: (r) => processStockData(r.data, r.meta.fields)
+    });
+  } else {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (rows.length) processStockData(rows, Object.keys(rows[0]));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+
+async function parsePDFStock(file) {
+  const res  = document.getElementById('stock-import-result');
+  const acts = document.getElementById('stock-import-actions');
+  acts.style.display = 'none';
+
+  if (typeof pdfjsLib === 'undefined') {
+    res.innerHTML = '<div style="color:#e74c3c;">PDF.js not loaded — please refresh the page.</div>';
+    return;
+  }
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  res.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#8795a1;font-size:13px;">
+    <span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Reading PDF…
+  </div>`;
+
+  try {
+    const arrayBuf = await file.arrayBuffer();
+    const pdf      = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+    const numPages = pdf.numPages;
+
+    // ── 1. Extract text items with positions from every page ──
+    const allItems = [];
+    let yOffset = 0;
+    for (let p = 1; p <= numPages; p++) {
+      const page    = await pdf.getPage(p);
+      const vp      = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      content.items.forEach(item => {
+        const s = (item.str || '').trim();
+        if (!s) return;
+        allItems.push({
+          str: s,
+          x:   Math.round(item.transform[4]),
+          y:   Math.round(yOffset + (vp.height - item.transform[5]))
+        });
+      });
+      yOffset += vp.height + 30;
+    }
+
+    if (!allItems.length) {
+      res.innerHTML = `<div style="color:#e74c3c;">
+        ⚠️ No selectable text found in this PDF (${numPages} page${numPages>1?'s':''}).
+        It may be a scanned image — use CSV or XLSX instead.
+      </div>`;
+      return;
+    }
+
+    // ── 2. Group items into rows (y-tolerance = 5px) ──
+    const buckets = [];
+    allItems.forEach(item => {
+      const b = buckets.find(b => Math.abs(b.y - item.y) <= 5);
+      if (b) b.items.push(item);
+      else   buckets.push({ y: item.y, items: [item] });
+    });
+    const rows = buckets
+      .sort((a, b) => a.y - b.y)
+      .map(b => b.items.sort((a, c) => a.x - c.x));  // keep items with x-positions
+
+    // ── 3. Detect column x-ranges from most common x-positions ──
+    // Count how many items land at each x (rounded to 8px grid)
+    const xGrid = 8;
+    const xFreq = {};
+    rows.forEach(row => row.forEach(item => {
+      const key = Math.round(item.x / xGrid) * xGrid;
+      xFreq[key] = (xFreq[key] || 0) + 1;
+    }));
+    // Column x anchors = x-positions that appear in ≥15% of rows
+    const minRows = Math.max(3, rows.length * 0.15);
+    const colAnchors = Object.entries(xFreq)
+      .filter(([, cnt]) => cnt >= minRows)
+      .map(([x]) => parseInt(x))
+      .sort((a, b) => a - b);
+
+    // For each row, assign cells to column slots
+    function snapToCol(x) {
+      if (!colAnchors.length) return x;
+      return colAnchors.reduce((best, cx) => Math.abs(cx - x) < Math.abs(best - x) ? cx : best, colAnchors[0]);
+    }
+    const colRows = rows.map(row => {
+      const cells = {};
+      row.forEach(item => { cells[snapToCol(item.x)] = (cells[snapToCol(item.x)] || '') + item.str; });
+      return colAnchors.map(cx => (cells[cx] || '').trim());
+    }).filter(r => r.some(c => c));
+
+    // ── 4. Header row detection ──
+    const SKU_RE  = /^(sku|ref|c[oó]d(igo)?|reference|art[íi]culo|item|code)$/i;
+    const QTY_RE  = /^(stock|qty|quantity|cant(idad)?|unidades?|existencias?|disponible|units?)$/i;
+
+    let headerIdx = -1, skuCol = -1, qtyCol = -1;
+
+    for (let ri = 0; ri < Math.min(colRows.length, 20); ri++) {
+      const r = colRows[ri];
+      const si = r.findIndex(c => SKU_RE.test(c));
+      const qi = r.findIndex(c => QTY_RE.test(c));
+      if (si !== -1 && qi !== -1) { headerIdx = ri; skuCol = si; qtyCol = qi; break; }
+      if ((si !== -1 || qi !== -1) && headerIdx === -1) {
+        headerIdx = ri; skuCol = si; qtyCol = qi;
+      }
+    }
+
+    // ── 5. Heuristic fallback ──
+    const dataColRows = colRows.slice(headerIdx >= 0 ? headerIdx + 1 : 0);
+
+    if (skuCol === -1 || qtyCol === -1) {
+      const sample = dataColRows.slice(0, Math.min(20, dataColRows.length)).filter(r => r.length >= 2);
+      if (!sample.length) {
+        res.innerHTML = `<div style="color:#e74c3c;">
+          Could not build a column structure from this PDF.<br>
+          <span style="font-size:12px;color:#8795a1;">${allItems.length} text items found across ${numPages} pages. Try CSV/XLSX.</span>
+        </div>`; return;
+      }
+      const nCols = Math.max(...sample.map(r => r.length));
+      const skuScore = new Array(nCols).fill(0);
+      const qtyScore = new Array(nCols).fill(0);
+      sample.forEach(row => {
+        row.forEach((cell, ci) => {
+          if (/^[A-Z0-9]{2,15}$/i.test(cell) && !/^\d{6,}$/.test(cell)) skuScore[ci] += 2;
+          if (/^\d{3,8}$/.test(cell))                                     skuScore[ci] += 1;
+          if (/^\d{1,7}([.,]\d+)?$/.test(cell.replace(/\s/g,'')))          qtyScore[ci] += 2;
+        });
+      });
+      if (skuCol === -1) skuCol = skuScore.indexOf(Math.max(...skuScore));
+      if (qtyCol === -1) {
+        qtyCol = qtyScore
+          .map((s, i) => ({ s, i }))
+          .filter(x => x.i !== skuCol)
+          .sort((a, b) => b.s - a.s)[0]?.i ?? -1;
+      }
+    }
+
+    if (skuCol === -1 || qtyCol === -1) {
+      // Show first 5 rows as debug so user can see what was extracted
+      const debugRows = dataColRows.slice(0, 5).map(r => r.join(' | ')).join('<br>');
+      res.innerHTML = `<div style="color:#e74c3c;font-size:13px;">
+        ⚠️ Could not detect SKU and stock columns automatically.<br>
+        <span style="font-size:12px;color:#555;margin-top:6px;display:block;">
+          <strong>First extracted rows:</strong><br>
+          <code style="font-size:11px;background:#f4f6f9;padding:4px 8px;border-radius:4px;display:block;margin-top:4px;">${debugRows || '(empty)'}</code>
+        </span>
+        <span style="font-size:12px;color:#8795a1;margin-top:6px;display:block;">
+          Try renaming columns to <strong>SKU</strong> and <strong>Stock</strong> and export as CSV or XLSX.
+        </span>
+      </div>`; return;
+    }
+
+    // ── 6. Extract data rows ──
+    const parsed = [];
+    dataColRows.forEach(row => {
+      const skuRaw = (row[skuCol] || '').trim();
+      const qtyRaw = (row[qtyCol] || '').trim().replace(/[^0-9.,]/g, '').replace(',', '.');
+      const sku    = skuRaw.replace(/\s+/g, '');
+      const qty    = parseFloat(qtyRaw);
+      if (!sku || sku.length < 2 || sku.length > 30) return;
+      if (SKU_RE.test(sku) || QTY_RE.test(sku))       return; // skip repeated headers
+      if (isNaN(qty))                                   return;
+      parsed.push({ SKU: sku, Stock: qty });
+    });
+
+    if (!parsed.length) {
+      const debugRows = dataColRows.slice(0, 5).map(r => r.join(' | ')).join('<br>');
+      res.innerHTML = `<div style="color:#e74c3c;">
+        ⚠️ Columns found (col ${skuCol+1} = SKU, col ${qtyCol+1} = Stock) but no valid rows extracted.<br>
+        <span style="font-size:12px;color:#555;margin-top:4px;display:block;">
+          <strong>Sample rows:</strong><br>
+          <code style="font-size:11px;background:#f4f6f9;padding:4px 8px;border-radius:4px;display:block;margin-top:4px;">${debugRows}</code>
+        </span>
+      </div>`; return;
+    }
+
+    const sourceLabel = `📄 PDF · ${numPages} page${numPages>1?'s':''} · ${allItems.length} items · col${skuCol+1}=SKU, col${qtyCol+1}=Stock${headerIdx>=0?' · header detected':''}`;
+    processStockData(parsed, ['SKU', 'Stock'], sourceLabel);
+
+  } catch (err) {
+    console.error('PDF parse error:', err);
+    res.innerHTML = `<div style="color:#e74c3c;">❌ Error reading PDF: ${err.message || err}<br>
+      <span style="font-size:12px;color:#8795a1;">Try CSV or XLSX instead.</span>
+    </div>`;
+  }
+}
+
+function processStockData(data, fields, sourceLabel) {
+  const res  = document.getElementById('stock-import-result');
+  const acts = document.getElementById('stock-import-actions');
+
+  if (!data || !data.length) {
+    res.innerHTML = '<div style="color:#e74c3c;">⚠️ No data rows found in this file.</div>'; return;
+  }
+
+  // ── Detect SKU and qty columns ──
+  const skuCol = fields.find(f => /sku|ref|c[oó]d(igo)?|article|art[íi]culo/i.test(f))
+              || fields.find(f => /product|item/i.test(f));
+  const qtyCol = fields.find(f => /stock|qty|quantity|cantidad|units?|unidades?|inventory|existencia|disponible/i.test(f))
+              || fields.find(f => /\d/.test(f) === false && f !== skuCol);
+
+  if (!skuCol || !qtyCol) {
+    res.innerHTML = `<div style="color:#e74c3c;">
+      ⚠️ Could not detect SKU and stock columns automatically.<br>
+      <span style="font-size:12px;color:#8795a1;">Columns found: <em>${fields.slice(0,8).join(', ')}${fields.length>8?'…':''}</em></span><br>
+      <span style="font-size:12px;">Rename columns to <strong>SKU</strong> and <strong>Stock</strong> and re-upload.</span>
+    </div>`; return;
+  }
+
+  // ── Parse rows, normalise SKU strings ──
+  const rows = data
+    .filter(r => r[skuCol] != null && String(r[skuCol]).trim().length > 0)
+    .map(r => ({
+      skuRaw: String(r[skuCol]).trim(),
+      sku:    String(r[skuCol]).trim().replace(/\s+/g, ''),   // strip internal spaces
+      qty:    parseFloat(String(r[qtyCol] ?? '').replace(/[^0-9.-]/g, '')) || 0
+    }))
+    .filter(r => r.sku.length >= 2 && r.sku.length <= 30);
+
+  if (!rows.length) {
+    res.innerHTML = '<div style="color:#e74c3c;">⚠️ No valid rows found after parsing. Check that SKU and stock columns have data.</div>';
+    return;
+  }
+
+  // ── Match each row against known forecast SKUs ──
+  const fcKeys = Object.keys(S.fc);
+  const matched   = rows.filter(r => fcKeys.includes(r.sku));
+  const unmatched = rows.filter(r => !fcKeys.includes(r.sku));
+
+  stockStaging = rows;  // stage all; importStock() will only commit matched ones
+
+  // ── Build preview table ──
+  const PREVIEW_MAX = 200;
+  const previewRows = rows.slice(0, PREVIEW_MAX);
+
+  const rowsHtml = previewRows.map((r, i) => {
+    const isMatch = fcKeys.includes(r.sku);
+    const bg = i % 2 ? '#f8f9fc' : '#fff';
+    const statusBadge = isMatch
+      ? `<span style="padding:2px 8px;border-radius:99px;background:#eafaf1;color:#27ae60;font-size:11px;font-weight:700;">✅ Match</span>`
+      : `<span style="padding:2px 8px;border-radius:99px;background:#f8f9fc;color:#95a5a6;font-size:11px;font-weight:700;">— No match</span>`;
+    return `<tr style="background:${bg};border-bottom:1px solid #edf0f5;">
+      <td style="padding:6px 10px;font-weight:600;color:#2c3e50;">${r.sku}</td>
+      <td style="padding:6px 10px;text-align:center;color:#2c3e50;font-weight:700;">${r.qty.toLocaleString()}</td>
+      <td style="padding:6px 10px;">${statusBadge}</td>
+    </tr>`;
+  }).join('');
+
+  const moreNote = rows.length > PREVIEW_MAX
+    ? `<div style="font-size:11.5px;color:#8795a1;padding:6px 10px;">… and ${rows.length - PREVIEW_MAX} more rows</div>` : '';
+
+  const summaryColor = matched.length === 0 ? '#e74c3c' : matched.length < rows.length ? '#e67e22' : '#27ae60';
+  const summaryIcon  = matched.length === 0 ? '⚠️' : matched.length < rows.length ? '⚠️' : '✅';
+
+  res.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:#2c3e50;">
+          ${summaryIcon} <strong>${matched.length}</strong> of <strong>${rows.length}</strong> file SKUs matched to forecast
+        </div>
+        ${unmatched.length > 0 ? `<div style="font-size:12px;color:#8795a1;">(${unmatched.length} not in forecast — will be skipped)</div>` : ''}
+      </div>
+      <div style="font-size:11.5px;color:#8795a1;margin-bottom:8px;">
+        Detected columns: <strong>${skuCol}</strong> → SKU &nbsp;·&nbsp; <strong>${qtyCol}</strong> → Stock${sourceLabel ? ' &nbsp;·&nbsp; ' + sourceLabel : ''}
+      </div>
+      <div style="max-height:220px;overflow-y:auto;border:1px solid #dde3ed;border-radius:8px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead>
+            <tr style="background:#f0f2f7;position:sticky;top:0;z-index:1;">
+              <th style="padding:7px 10px;text-align:left;font-weight:700;color:#3a4a5c;border-bottom:1.5px solid #dde3ed;">SKU</th>
+              <th style="padding:7px 10px;text-align:center;font-weight:700;color:#3a4a5c;border-bottom:1.5px solid #dde3ed;">Stock Qty</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:700;color:#3a4a5c;border-bottom:1.5px solid #dde3ed;">In Forecast</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${moreNote}
+      </div>
+    </div>`;
+
+  if (matched.length === 0) {
+    res.innerHTML += `<div style="color:#e74c3c;font-size:12.5px;margin-top:6px;">
+      ❌ None of the ${rows.length} SKUs in this file match your forecast SKUs. Import cancelled.
+      <br><span style="color:#8795a1;">Check that the SKU format in your file matches the codes in the Forecast tab.</span>
+    </div>`;
+    acts.style.display = 'none';
+    return;
+  }
+
+  acts.style.display = '';
+  // Update import button label
+  const btn = document.getElementById('btn-import-stock');
+  if (btn) btn.textContent = `✅ Import ${matched.length} Matched SKU${matched.length!==1?'s':''}`;
+}
+
+function importStock() {
+  if (!stockStaging) return;
+  const fcKeys = Object.keys(S.fc);
+  let imported = 0, skipped = 0;
+  stockStaging.forEach(r => {
+    if (fcKeys.includes(r.sku)) {
+      S.stock[r.sku] = r.qty;
+      imported++;
+    } else {
+      skipped++;
+    }
+  });
+  stockStaging = null;
+  persist();
+  document.getElementById('stock-import-actions').style.display = 'none';
+  document.getElementById('stock-import-result').innerHTML = `
+    <div style="color:#27ae60;font-size:13px;font-weight:700;">✅ Stock updated for <strong>${imported}</strong> SKU${imported!==1?'s':''}.</div>
+    ${skipped > 0 ? `<div style="color:#8795a1;font-size:12px;margin-top:3px;">ℹ️ ${skipped} file SKU${skipped!==1?'s':''} not in forecast — skipped.</div>` : ''}
+  `;
+  renderStockTable();
+  updateStockStats();
+  // Reset file input so same file can be re-uploaded
+  const fi = document.getElementById('stock-file-input');
+  if (fi) fi.value = '';
+}
+
+function getMonthlyRate(sku) {
+  const ss = S.stockSettings;
+  if (ss.rateSrc === 'forecast' && S.fc[sku]) {
+    const d = S.fc[sku];
+    const tot = (d.combined || d.b2c.map((v,i)=>v+d.b2b[i])).reduce((s,v)=>s+v, 0);
+    return tot / 12;
+  }
+  // Use actuals YTD (average of non-zero months)
+  const fcYear = S.fcYear || new Date().getFullYear();
+  const acts = (S.actuals[fcYear] || {})[sku];
+  if (acts) {
+    const filled = acts.filter(v => v != null && v > 0);
+    if (filled.length) return filled.reduce((s,v)=>s+v, 0) / filled.length;
+  }
+  // Fall back to most recent historical year
+  const years = Object.keys(S.hist).sort();
+  if (years.length) {
+    const yr = years[years.length - 1];
+    const d  = (S.hist[yr] || {})[sku];
+    if (d) {
+      const vals = d.combined || d.b2c.map((v,i)=>v+d.b2b[i]);
+      const pos  = vals.filter(v => v > 0);
+      if (pos.length) return pos.reduce((s,v)=>s+v, 0) / pos.length;
+    }
+  }
+  return 0;
+}
+
+function getStockStatus(coverageWeeks) {
+  if (coverageWeeks === null || coverageWeeks === undefined)
+    return { label: t('stock_no_rate'), color: '#95a5a6', bg: '#f5f6fa' };
+  if (coverageWeeks < 4)  return { label: t('stock_critical'), color: '#e74c3c', bg: '#fdf0ee' };
+  if (coverageWeeks < 8)  return { label: t('stock_reorder'),  color: '#e67e22', bg: '#fef3e8' };
+  if (coverageWeeks < 16) return { label: t('stock_ok'),       color: '#27ae60', bg: '#eafaf1' };
+  return                         { label: t('stock_excess'),   color: '#3498db', bg: '#ebf5fb' };
+}
+
+function renderStockTab() {
+  if (!document.getElementById('stock-target')) return;
+  const s = S.stockSettings;
+  document.getElementById('stock-target').value   = s.target;
+  document.getElementById('stock-lead').value     = s.lead;
+  document.getElementById('stock-safety').value   = s.safety;
+  document.getElementById('stock-rate-src').value = s.rateSrc;
+  renderStockTable();
+}
+
+function renderStockTable() {
+  const tbody = document.getElementById('stock-tbl-body');
+  const empty = document.getElementById('stock-tbl-empty');
+  const wrap  = document.getElementById('stock-tbl-wrap');
+  if (!tbody) return;
+
+  const allSKUs = new Set([...Object.keys(S.fc), ...Object.keys(S.stock)]);
+  if (!allSKUs.size) {
+    empty.style.display = ''; wrap.style.display = 'none';
+    updateStockStats(); return;
+  }
+  empty.style.display = 'none'; wrap.style.display = '';
+
+  const ss = S.stockSettings;
+  const rows = [];
+  allSKUs.forEach(sku => {
+    const fcData      = S.fc[sku];
+    const name        = fcData ? fcData.name : sku;
+    const stockQty    = S.stock[sku] !== undefined ? S.stock[sku] : null;
+    const monthlyRate = getMonthlyRate(sku);
+    const weeklyRate  = monthlyRate / 4.33;
+    let coverageWeeks = null;
+    if (stockQty !== null && weeklyRate > 0) coverageWeeks = stockQty / weeklyRate;
+    const status = getStockStatus(coverageWeeks);
+    let recommendedPO = 0;
+    if (coverageWeeks !== null && weeklyRate > 0) {
+      recommendedPO = Math.max(0, Math.ceil((ss.target + ss.lead + ss.safety - coverageWeeks) * weeklyRate));
+    }
+    rows.push({ sku, name, stockQty, monthlyRate, coverageWeeks, status, recommendedPO });
+  });
+
+  // Sort: critical first, then by coverage asc
+  rows.sort((a, b) => {
+    if (a.coverageWeeks === null && b.coverageWeeks === null) return 0;
+    if (a.coverageWeeks === null) return 1;
+    if (b.coverageWeeks === null) return -1;
+    return a.coverageWeeks - b.coverageWeeks;
+  });
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const qtyVal = r.stockQty !== null ? r.stockQty : '';
+    const rateStr = r.monthlyRate > 0 ? r.monthlyRate.toFixed(1) : '—';
+    const covStr  = r.coverageWeeks !== null ? r.coverageWeeks.toFixed(1) + 'w' : '—';
+    const poStr   = r.recommendedPO > 0 ? fmt(r.recommendedPO) : '✓';
+    const poCol   = r.recommendedPO > 0 ? '#c0392b' : '#27ae60';
+    return `<tr style="background:${i%2?'#f8f9fc':'#fff'};border-bottom:1px solid #edf0f5;">
+      <td style="padding:10px 12px;font-weight:700;color:#2c3e50;">${r.sku}</td>
+      <td style="padding:10px 12px;color:#555;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.name}">${r.name}</td>
+      <td style="padding:10px 12px;text-align:center;">
+        <input type="number" value="${qtyVal}" min="0" placeholder="—"
+          style="width:85px;text-align:center;padding:5px 8px;border:1.5px solid #dde3ed;border-radius:7px;font-size:13px;font-weight:600;color:#2c3e50;"
+          onchange="updateStockQty('${r.sku}', this.value)">
+      </td>
+      <td style="padding:10px 12px;text-align:center;color:#555;">${rateStr}</td>
+      <td style="padding:10px 12px;text-align:center;font-weight:700;color:${r.status.color};">${covStr}</td>
+      <td style="padding:10px 12px;text-align:center;">
+        <span style="padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;color:${r.status.color};background:${r.status.bg};">${r.status.label}</span>
+      </td>
+      <td style="padding:10px 12px;text-align:center;font-weight:700;color:${poCol};">${poStr}</td>
+    </tr>`;
+  }).join('');
+
+  updateStockStats();
+}
+
+function updateStockQty(sku, val) {
+  S.stock[sku] = parseFloat(val) || 0;
+  persist();
+  renderStockTable();
+}
+
+function updateStockStats() {
+  const statsRow = document.getElementById('stock-stats-row');
+  if (!statsRow) return;
+  const allSKUs = new Set([...Object.keys(S.fc), ...Object.keys(S.stock)]);
+  if (!allSKUs.size) { statsRow.style.display = 'none'; return; }
+  statsRow.style.display = '';
+  let critical = 0, reorder = 0, ok = 0, excess = 0;
+  allSKUs.forEach(sku => {
+    const stockQty   = S.stock[sku] !== undefined ? S.stock[sku] : null;
+    const weeklyRate = getMonthlyRate(sku) / 4.33;
+    if (stockQty === null || weeklyRate <= 0) return;
+    const cov = stockQty / weeklyRate;
+    if (cov < 4) critical++;
+    else if (cov < 8) reorder++;
+    else if (cov < 16) ok++;
+    else excess++;
+  });
+  document.getElementById('st-total').textContent    = allSKUs.size;
+  document.getElementById('st-critical').textContent = critical;
+  document.getElementById('st-reorder').textContent  = reorder;
+  document.getElementById('st-ok').textContent       = ok;
+  document.getElementById('st-excess').textContent   = excess;
+}
+
+function toggleStockImport() {
+  const wrap  = document.getElementById('stock-import-wrap');
+  const btn   = document.getElementById('btn-toggle-stock-import');
+  if (!wrap) return;
+  const hiding = wrap.style.display !== 'none';
+  wrap.style.display = hiding ? 'none' : '';
+  btn.innerHTML = `<span id="stock-import-arrow" style="font-size:10px;">${hiding?'▶':'▼'}</span> ${hiding?'Show':'Hide'}`;
+}
+
+function exportStockCSV() {
+  const allSKUs = new Set([...Object.keys(S.fc), ...Object.keys(S.stock)]);
+  if (!allSKUs.size) { alert('No stock data to export.'); return; }
+  const ss = S.stockSettings;
+  const rows = [['SKU','Name','Current Stock','Monthly Rate','Weeks Coverage','Status','Recommended PO']];
+  allSKUs.forEach(sku => {
+    const fcData   = S.fc[sku];
+    const name     = fcData ? fcData.name : sku;
+    const stockQty = S.stock[sku] !== undefined ? S.stock[sku] : '';
+    const rate     = getMonthlyRate(sku);
+    const weekly   = rate / 4.33;
+    let cov = '', status = '', rpo = '';
+    if (stockQty !== '' && weekly > 0) {
+      cov    = (stockQty / weekly).toFixed(1);
+      status = getStockStatus(parseFloat(cov)).label;
+      rpo    = Math.max(0, Math.ceil((ss.target + ss.lead + ss.safety - parseFloat(cov)) * weekly));
+    }
+    rows.push([sku, name, stockQty, rate.toFixed(1), cov, status, rpo]);
+  });
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `stock_report_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  YEAR PREVIEW TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleTrackerTable() {
+  const wrap  = document.getElementById('tracker-tbl-wrap');
+  const arrow = document.getElementById('tracker-tbl-arrow');
+  const btn   = document.getElementById('btn-toggle-tracker-tbl');
+  if (!wrap) return;
+  const hiding = wrap.style.display !== 'none';
+  wrap.style.display    = hiding ? 'none' : '';
+  arrow.style.transform = hiding ? 'rotate(-90deg)' : 'rotate(0deg)';
+  btn.innerHTML = `<span id="tracker-tbl-arrow" style="font-size:10px;display:inline-block;transition:transform .2s;transform:${hiding?'rotate(-90deg)':'rotate(0deg)'}">\u25bc</span> ${hiding ? 'Show' : 'Hide'}`;
+}
+
+function toggleHistPreview() {
+  const wrap  = document.getElementById('histTableWrap');
+  const arrow = document.getElementById('preview-arrow');
+  const btn   = document.getElementById('btn-toggle-preview');
+  if (!wrap) return;
+  const hiding = wrap.style.display !== 'none';
+  wrap.style.display  = hiding ? 'none' : '';
+  arrow.style.transform = hiding ? 'rotate(-90deg)' : 'rotate(0deg)';
+  btn.innerHTML = `<span id="preview-arrow" style="font-size:10px;transition:transform .2s;display:inline-block;transform:${hiding?'rotate(-90deg)':'rotate(0deg)'}">\u25bc</span> ${hiding ? 'Show' : 'Hide'}`;
+}
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', ()=>{
+  loadPersisted();
+  document.getElementById('tr-month').value = new Date().getMonth();
+  if(document.getElementById('fc-growth')) document.getElementById('fc-growth').value = S.fcGrowth||10;
+  // Language init
+  if (S.lang) setLang(S.lang); else updateLangButtonStates();
+  // Stock settings init
+  if (S.stockSettings) renderStockTab();
+
+  if (Object.keys(S.hist).length) {
+    // Restore from persisted state — rebuild all UI
+    rebuildAfterHistChange();
+    // Restore growth rate
+    if(document.getElementById('fc-growth')) document.getElementById('fc-growth').value=S.fcGrowth||10;
+    // Restore forecast if already generated
+    if (Object.keys(S.fc).length) updateFcStats();
+    renderRevList();
+  }
+
+  // Restore current actuals status badge
+  if (S.currentActualsMeta) restoreCurActualsStatus();
+
+  // Restore forecast saved-state bar
+  if (S.fcSavedParams) updateFcSavedBar(false);
+});
+
+// ══════════════════════════════════════════════════════
+//  BOT DATA EXPORT  (used by the Purchase Manager Bot)
+// ══════════════════════════════════════════════════════
+window.getBotData = function() {
+  const raw = localStorage.getItem('occre_v2');
+  if (!raw) return null;
+  try {
+    const S = JSON.parse(raw);
+    // Pre-compute per-SKU analysis
+    const ss = S.stockSettings || { target:12, lead:8, safety:2, rateSrc:'actuals' };
+    const fcYear = S.fcYear || new Date().getFullYear();
+    const allSKUs = Array.from(new Set([...Object.keys(S.fc||{}), ...Object.keys(S.stock||{})]));
+
+    const skuAnalysis = {};
+    allSKUs.forEach(sku => {
+      const fc   = S.fc[sku];
+      const stockQty = (S.stock && S.stock[sku] !== undefined) ? S.stock[sku] : null;
+
+      // Monthly rate
+      let monthlyRate = 0;
+      if (ss.rateSrc === 'forecast' && fc) {
+        const combined = fc.combined || fc.b2c.map((v,i)=>v+(fc.b2b[i]||0));
+        monthlyRate = combined.reduce((s,v)=>s+v,0) / 12;
+      } else {
+        const acts = (S.actuals && S.actuals[fcYear]) ? S.actuals[fcYear][sku] : null;
+        if (acts) {
+          const filled = acts.filter(v => v != null && v > 0);
+          if (filled.length) monthlyRate = filled.reduce((s,v)=>s+v,0) / filled.length;
+        }
+        if (!monthlyRate && fc) {
+          const combined = fc.combined || fc.b2c.map((v,i)=>v+(fc.b2b[i]||0));
+          monthlyRate = combined.reduce((s,v)=>s+v,0) / 12;
+        }
+      }
+
+      const weeklyRate = monthlyRate / 4.33;
+      let coverageWeeks = null, recommendedPO = 0, signal = 'no_stock';
+
+      if (stockQty !== null && weeklyRate > 0) {
+        coverageWeeks = stockQty / weeklyRate;
+        recommendedPO = Math.max(0, Math.ceil((ss.target + ss.lead + ss.safety - coverageWeeks) * weeklyRate));
+        if (coverageWeeks <= ss.lead)             signal = 'urgent';
+        else if (coverageWeeks <= ss.lead + ss.safety) signal = 'careful';
+        else if (coverageWeeks > ss.target * 2)        signal = 'overstock';
+        else                                            signal = 'ok';
+      }
+
+      // Actuals vs Forecast variance
+      let actualsVariance = null;
+      const acts = (S.actuals && S.actuals[fcYear]) ? S.actuals[fcYear][sku] : null;
+      if (acts && fc) {
+        const combined = fc.combined || fc.b2c.map((v,i)=>v+(fc.b2b[i]||0));
+        let actSum = 0, fcSum = 0, count = 0;
+        acts.forEach((a, i) => {
+          if (a != null) { actSum += a; fcSum += (combined[i]||0); count++; }
+        });
+        if (count > 0 && fcSum > 0) actualsVariance = Math.round((actSum - fcSum) / fcSum * 100);
+      }
+
+      skuAnalysis[sku] = {
+        name: fc ? fc.name : sku,
+        stockQty, monthlyRate: Math.round(monthlyRate), weeklyRate: Math.round(weeklyRate*10)/10,
+        coverageWeeks: coverageWeeks !== null ? Math.round(coverageWeeks*10)/10 : null,
+        recommendedPO, signal, actualsVariance,
+        isNew: fc ? !!fc.isNew : false,
+        relMonth: fc ? (fc.relMonth||1) : 1,
+        relLabel: fc ? (fc.relLabel||'Jan') : 'Jan'
+      };
+    });
+
+    return {
+      exportedAt: new Date().toISOString(),
+      fcYear,
+      stockSettings: ss,
+      skuAnalysis,
+      totalSKUs: allSKUs.length,
+      newSKUs: (S.newSKUs||[]).map(s => ({ sku:s.sku, name:s.name, refSKU:s.refSKU, refPct:s.refPct, relLabel:s.relLabel })),
+      revisions: (S.revisions||[]).slice(-5),
+      toolUrl: window.location.href
+    };
+  } catch(e) { return { error: e.message }; }
+};
+
+// Expose for scheduled bot
+window._occreToolUrl = window.location.href;
+
+</script>
+</body>
+</html>
